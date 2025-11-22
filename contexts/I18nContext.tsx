@@ -103,6 +103,15 @@ const translations = {
     'workspace.recent': '最近打开',
     'workspace.create_new': '创建新页面',
     'workspace.empty': '还没有创建任何页面',
+
+    'bubble.ai': 'AI 写作',
+    'bubble.link': '链接',
+
+    'modal.link.title': '插入链接',
+    'modal.link.text': '显示文本',
+    'modal.link.url': '链接',
+    'modal.confirm': '确认',
+    'modal.cancel': '取消',
   },
   'en-US': {
     'nav.workspace': 'My Workspace',
@@ -204,6 +213,15 @@ const translations = {
     'workspace.recent': 'Recent Pages',
     'workspace.create_new': 'Create New Page',
     'workspace.empty': 'No pages created yet',
+
+    'bubble.ai': 'AI Write',
+    'bubble.link': 'Link',
+
+    'modal.link.title': 'Insert Link',
+    'modal.link.text': 'Text',
+    'modal.link.url': 'URL',
+    'modal.confirm': 'Confirm',
+    'modal.cancel': 'Cancel',
   }
 };
 

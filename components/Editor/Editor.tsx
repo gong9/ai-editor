@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useEditor, EditorContent, ReactNodeViewRenderer } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -11,12 +10,15 @@ import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
+import Underline from '@tiptap/extension-underline';
 import { common, createLowlight } from 'lowlight';
 import { SlashMenu } from './SlashMenu';
 import { Toolbar } from './Toolbar';
 import { Outline } from './Outline';
 import { ContextMenu } from './ContextMenu';
+import { EditorBubbleMenu } from './EditorBubbleMenu';
 import { CodeBlockComponent } from './CodeBlockComponent';
+import { LinkModal } from './LinkModal';
 import { generateCompletion } from '../../services/geminiService';
 import { saveImage } from '../../services/imageService';
 import { Loader2, Shuffle, X, ImageIcon as LucideImage } from 'lucide-react';
@@ -53,7 +55,45 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [coverImage, setCoverImage] = useState<string | null>(DEFAULT_COVER_URL);
+  const [isMouseDown, setIsMouseDown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Link Modal State
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [linkModalData, setLinkModalData] = useState({ text: '', url: '' });
+
+  // Track mouse state for bubble menu visibility
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      // Check if clicking inside a Tippy tooltip (Bubble Menu)
+      // Tiptap uses tippy.js, which usually puts elements in popper/tippy root
+      // We also need to check if we are clicking our custom SlashMenu or ContextMenu
+      const target = e.target as HTMLElement;
+      
+      const isInsideTippy = target.closest('[data-tippy-root]');
+      const isInsideSlashMenu = target.closest('.fixed.z-50.w-72'); // SlashMenu class identifier
+      const isInsideContextMenu = target.closest('.fixed.z-\\[100\\]'); // ContextMenu class identifier
+      const isInsideLinkModal = target.closest('.fixed.z-\\[99999\\]'); // LinkModal class identifier
+
+      // If we are interacting with UI elements, do NOT set isMouseDown to true
+      // This prevents the BubbleMenu from being hidden when we click buttons inside it
+      if (isInsideTippy || isInsideSlashMenu || isInsideContextMenu || isInsideLinkModal) {
+        return;
+      }
+
+      setIsMouseDown(true);
+    };
+
+    const handleMouseUp = () => setIsMouseDown(false);
+
+    document.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -74,6 +114,8 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
           autolink: true,
       }),
       Highlight,
+      Underline,
+      // BubbleMenuExtension Removed: Handled by React Component <BubbleMenu />
       CodeBlockLowlight.configure({
         lowlight,
       }).extend({
@@ -91,7 +133,8 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
     content: initialContent || '',
     editorProps: {
       attributes: {
-        class: 'prose prose-lg focus:outline-none max-w-none mx-auto',
+        // Updated classes: flex-1 and h-full to ensure it takes up space
+        class: 'prose prose-lg focus:outline-none max-w-none mx-auto flex-1 h-full min-h-[60vh]',
       },
       handleDOMEvents: {
         contextmenu: (view, event) => {
@@ -99,9 +142,20 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
             const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
             
             if (pos) {
-                const { tr } = view.state;
-                const selection = view.state.selection.constructor.near(view.state.doc.resolve(pos.pos));
-                view.dispatch(tr.setSelection(selection));
+                const { selection } = view.state;
+                
+                // Check if the click is inside the current selection
+                // If so, don't move the cursor (preserve selection for copy/actions)
+                const isClickInSelection = !selection.empty && 
+                                         pos.pos >= selection.from && 
+                                         pos.pos <= selection.to;
+
+                if (!isClickInSelection) {
+                    const { tr } = view.state;
+                    const selectionClass: any = view.state.selection.constructor;
+                    const newSelection = selectionClass.near(view.state.doc.resolve(pos.pos));
+                    view.dispatch(tr.setSelection(newSelection));
+                }
             }
 
             setContextMenu({ x: event.clientX, y: event.clientY });
@@ -199,6 +253,39 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
       }
   };
 
+  const openLinkModal = () => {
+      if (!editor) return;
+      const { from, to } = editor.state.selection;
+      const text = editor.state.doc.textBetween(from, to, ' ');
+      const href = editor.getAttributes('link').href || '';
+      setLinkModalData({ text, url: href });
+      setIsLinkModalOpen(true);
+  };
+
+  const handleLinkConfirm = (text: string, url: string) => {
+      if (!editor) return;
+      
+      if (url === '') {
+        editor.chain().focus().extendMarkRange('link').unsetLink().run();
+      } else {
+        // Check if we need to update the text content as well
+        editor.chain().focus()
+            .extendMarkRange('link')
+            .insertContent({
+                type: 'text',
+                text: text,
+                marks: [
+                    {
+                        type: 'link',
+                        attrs: { href: url }
+                    }
+                ]
+            })
+            .run();
+      }
+      setIsLinkModalOpen(false);
+  };
+
   const handleContextAction = (action: string, payload?: any) => {
     if (!editor) return;
     editor.chain().focus();
@@ -241,28 +328,28 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
     setContextMenu(null);
   };
 
-  const handleContainerClick = (e: React.MouseEvent) => {
-    if (e.target !== e.currentTarget) return;
-    if (editor) {
-        const lastNode = editor.state.doc.lastChild;
-        if (lastNode?.type.name === 'codeBlock') {
-             editor.chain().insertContentAt(editor.state.doc.content.size, { type: 'paragraph' }).focus().run();
-        } else {
-            editor.commands.focus('end');
-        }
+  // Helper to ensure focus when clicking empty space
+  const handleEditorClick = (e: React.MouseEvent) => {
+    // Only focus if clicking the container directly, not children
+    if (editor && e.target === e.currentTarget) {
+      editor.commands.focus('end');
     }
   };
 
   return (
     <div className="flex flex-col w-full min-h-full relative bg-white">
-      <Toolbar editor={editor} onInsertImage={handleInsertImage} />
+      <Toolbar 
+        editor={editor} 
+        onInsertImage={handleInsertImage} 
+        onLinkClick={openLinkModal}
+      />
 
       <div className="flex flex-1 relative">
         <div 
-          className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-32 min-h-full cursor-text"
-          onClick={handleContainerClick}
+          className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 min-h-full cursor-text flex flex-col"
+          onMouseDown={handleEditorClick}
         >
-           <div className="group relative w-full mb-8 transition-all">
+           <div className="group relative w-full mb-8 transition-all shrink-0">
              {coverImage ? (
                <div className="relative w-full h-48 md:h-64 rounded-t-xl overflow-hidden shadow-sm group-hover:shadow-md transition-all">
                   <img src={coverImage} alt="Cover" className="w-full h-full object-cover object-center" />
@@ -294,7 +381,8 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
              )}
            </div>
 
-           <EditorContent editor={editor} className="min-h-[500px]" />
+           {/* Editor Content Area - Now set to flex-1 and h-full to occupy remaining space */}
+           <EditorContent editor={editor} className="flex-1 h-full flex flex-col" />
         </div>
 
         <Outline editor={editor} />
@@ -308,6 +396,15 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
         onImageSelect={() => fileInputRef.current?.click()}
       />
       
+      {editor && (
+        <EditorBubbleMenu 
+            editor={editor} 
+            onAiClick={handleAiGenerate} 
+            onLinkClick={openLinkModal}
+            isMouseDown={isMouseDown}
+        />
+      )}
+      
       {contextMenu && (
         <ContextMenu 
             position={contextMenu} 
@@ -316,6 +413,14 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
             isTableActive={editor?.isActive('table')}
         />
       )}
+      
+      <LinkModal 
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onConfirm={handleLinkConfirm}
+        initialText={linkModalData.text}
+        initialUrl={linkModalData.url}
+      />
 
       <input 
             type="file" 

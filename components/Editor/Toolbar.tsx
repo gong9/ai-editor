@@ -23,6 +23,7 @@ import { useTranslation } from '../../contexts/I18nContext';
 interface ToolbarProps {
   editor: Editor | null;
   onInsertImage: (file: File) => void;
+  onLinkClick: () => void;
 }
 
 interface ToolbarButtonProps {
@@ -57,30 +58,11 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
 
 const Divider = () => <div className="w-px h-4 bg-gray-200 mx-1" />;
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage, onLinkClick }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!editor) return null;
-
-  const handleLink = () => {
-    const previousUrl = editor.getAttributes('link').href;
-    const url = window.prompt(t('toolbar.link.prompt'), previousUrl);
-
-    // cancelled
-    if (url === null) {
-      return;
-    }
-
-    // empty
-    if (url === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run();
-      return;
-    }
-
-    // update
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-  };
 
   const handleImageClick = () => {
       fileInputRef.current?.click();
@@ -145,6 +127,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage }) => {
           <Italic size={18} />
         </ToolbarButton>
         <ToolbarButton 
+          onClick={() => editor.chain().focus().toggleUnderline().run()} 
+          isActive={editor.isActive('underline')} 
+          title={t('toolbar.underline')}
+        >
+          <Underline size={18} />
+        </ToolbarButton>
+        <ToolbarButton 
           onClick={() => editor.chain().focus().toggleStrike().run()} 
           isActive={editor.isActive('strike')} 
           title={t('toolbar.strike')}
@@ -159,7 +148,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage }) => {
           <Highlighter size={18} />
         </ToolbarButton>
         <ToolbarButton 
-          onClick={handleLink} 
+          onClick={onLinkClick} 
           isActive={editor.isActive('link')} 
           title={t('toolbar.link')}
         >
