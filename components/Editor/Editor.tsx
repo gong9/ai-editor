@@ -15,7 +15,6 @@ import { common, createLowlight } from 'lowlight';
 import { SlashMenu } from './SlashMenu';
 import { Toolbar } from './Toolbar';
 import { Outline } from './Outline';
-import { ContextMenu } from './ContextMenu';
 import { EditorBubbleMenu } from './EditorBubbleMenu';
 import { CodeBlockComponent } from './CodeBlockComponent';
 import { LinkModal } from './LinkModal';
@@ -52,48 +51,13 @@ interface EditorProps {
 export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
   const { t } = useTranslation();
   const [slashMenuPos, setSlashMenuPos] = useState<{ x: number, y: number } | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [coverImage, setCoverImage] = useState<string | null>(DEFAULT_COVER_URL);
-  const [isMouseDown, setIsMouseDown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Link Modal State
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [linkModalData, setLinkModalData] = useState({ text: '', url: '' });
-
-  // Track mouse state for bubble menu visibility
-  useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      // Check if clicking inside a Tippy tooltip (Bubble Menu)
-      // Tiptap uses tippy.js, which usually puts elements in popper/tippy root
-      // We also need to check if we are clicking our custom SlashMenu or ContextMenu
-      const target = e.target as HTMLElement;
-      
-      const isInsideTippy = target.closest('[data-tippy-root]');
-      const isInsideSlashMenu = target.closest('.fixed.z-50.w-72'); // SlashMenu class identifier
-      const isInsideContextMenu = target.closest('.fixed.z-\\[100\\]'); // ContextMenu class identifier
-      const isInsideLinkModal = target.closest('.fixed.z-\\[99999\\]'); // LinkModal class identifier
-
-      // If we are interacting with UI elements, do NOT set isMouseDown to true
-      // This prevents the BubbleMenu from being hidden when we click buttons inside it
-      if (isInsideTippy || isInsideSlashMenu || isInsideContextMenu || isInsideLinkModal) {
-        return;
-      }
-
-      setIsMouseDown(true);
-    };
-
-    const handleMouseUp = () => setIsMouseDown(false);
-
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -136,32 +100,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
         // Updated classes: flex-1 and h-full to ensure it takes up space
         class: 'prose prose-lg focus:outline-none max-w-none flex-1 h-full min-h-[60vh]',
       },
-      handleDOMEvents: {
-        contextmenu: (view, event) => {
-            event.preventDefault();
-            const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
-            
-            if (pos) {
-                const { selection } = view.state;
-                
-                // Check if the click is inside the current selection
-                // If so, don't move the cursor (preserve selection for copy/actions)
-                const isClickInSelection = !selection.empty && 
-                                         pos.pos >= selection.from && 
-                                         pos.pos <= selection.to;
-
-                if (!isClickInSelection) {
-                    const { tr } = view.state;
-                    const selectionClass: any = view.state.selection.constructor;
-                    const newSelection = selectionClass.near(view.state.doc.resolve(pos.pos));
-                    view.dispatch(tr.setSelection(newSelection));
-                }
-            }
-
-            setContextMenu({ x: event.clientX, y: event.clientY });
-            return true;
-        }
-      },
+      handleDOMEvents: {},
       handleClick: (view, pos, event) => {
         const { state } = view;
         const lastNode = state.doc.lastChild;
@@ -176,6 +115,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
                 state.schema.nodes.paragraph.create()
               );
               const resolvedPos = transaction.doc.resolve(transaction.doc.content.size - 1);
+              // @ts-ignore
               const selection = state.selection.constructor.near(resolvedPos);
               transaction.setSelection(selection);
               view.dispatch(transaction);
@@ -286,48 +226,6 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
       setIsLinkModalOpen(false);
   };
 
-  const handleContextAction = (action: string, payload?: any) => {
-    if (!editor) return;
-    editor.chain().focus();
-
-    switch (action) {
-        case 'copy':
-            const { from, to } = editor.state.selection;
-            let text = "";
-            if (from === to) {
-                 const node = editor.state.selection.$from.parent;
-                 text = node.textContent;
-            } else {
-                 text = editor.state.doc.textBetween(from, to, '\n');
-            }
-            navigator.clipboard.writeText(text);
-            break;
-        case 'duplicate':
-            const node = editor.state.selection.$head.parent;
-            const json = node.toJSON();
-            editor.chain().createParagraphNear().insertContent(json).run();
-            break;
-        case 'delete':
-            editor.chain().deleteNode(editor.state.selection.$from.parent.type.name).run();
-            break;
-        case 'turn-into':
-             if (payload === 'h1') editor.chain().setHeading({ level: 1 }).run();
-             if (payload === 'h2') editor.chain().setHeading({ level: 2 }).run();
-             if (payload === 'bullet-list') editor.chain().toggleBulletList().run();
-            break;
-        case 'table-add-col-before': editor.chain().addColumnBefore().run(); break;
-        case 'table-add-col-after': editor.chain().addColumnAfter().run(); break;
-        case 'table-delete-col': editor.chain().deleteColumn().run(); break;
-        case 'table-add-row-before': editor.chain().addRowBefore().run(); break;
-        case 'table-add-row-after': editor.chain().addRowAfter().run(); break;
-        case 'table-delete-row': editor.chain().deleteRow().run(); break;
-        case 'table-delete': editor.chain().deleteTable().run(); break;
-        case 'table-merge-cells': editor.chain().mergeCells().run(); break;
-        case 'table-split-cells': editor.chain().splitCell().run(); break;
-    }
-    setContextMenu(null);
-  };
-
   // Helper to ensure focus when clicking empty space
   const handleEditorClick = (e: React.MouseEvent) => {
     if (!editor) return;
@@ -361,13 +259,11 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
     // 这样可以定位到该行的开始位置
     if (clickX < editorRect.left) {
       clickX = editorRect.left + 1;
-      console.log('📍 点击左侧空白，调整 x 到编辑器左边界');
     }
     
     // 如果点击在编辑器右侧的 padding 区域，调整 x 到编辑器右边界
     if (clickX > editorRect.right) {
       clickX = editorRect.right - 1;
-      console.log('📍 点击右侧空白，调整 x 到编辑器右边界');
     }
     
     // 尝试在点击位置附近找到合适的位置
@@ -375,11 +271,9 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
     const pos = editorView.posAtCoords({ left: clickX, top: clickY });
     
     if (pos) {
-      console.log('✅ 定位到位置:', pos.pos);
       editor.commands.focus();
       editor.commands.setTextSelection(pos.pos);
     } else {
-      console.log('❌ 找不到位置，定位到末尾');
       editor.commands.focus('end');
     }
   };
@@ -449,16 +343,6 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
             editor={editor} 
             onAiClick={handleAiGenerate} 
             onLinkClick={openLinkModal}
-            isMouseDown={isMouseDown}
-        />
-      )}
-      
-      {contextMenu && (
-        <ContextMenu 
-            position={contextMenu} 
-            onClose={() => setContextMenu(null)}
-            onAction={handleContextAction}
-            isTableActive={editor?.isActive('table')}
         />
       )}
       

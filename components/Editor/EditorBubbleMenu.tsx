@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BubbleMenu, Editor } from '@tiptap/react';
+import React, { useState, useEffect } from 'react';
+import { Editor } from '@tiptap/react';
 import { 
   Bold, 
   Italic, 
@@ -17,14 +17,67 @@ interface EditorBubbleMenuProps {
   editor: Editor;
   onAiClick: () => void;
   onLinkClick: () => void;
-  isMouseDown: boolean;
 }
 
-export const EditorBubbleMenu: React.FC<EditorBubbleMenuProps> = ({ editor, onAiClick, onLinkClick, isMouseDown }) => {
+export const EditorBubbleMenu: React.FC<EditorBubbleMenuProps> = ({ editor, onAiClick, onLinkClick }) => {
   const { t } = useTranslation();
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
-  if (!editor) return null;
+  // 监听右键菜单
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      // 检查是否有选中文本
+      const { state } = editor;
+      if (state.selection.empty) return;
+      if (editor.isActive('image') || editor.isActive('codeBlock')) return;
+
+      // 检查是否在编辑器内
+      const target = e.target as HTMLElement;
+      if (!target.closest('.ProseMirror')) return;
+
+      e.preventDefault();
+      
+      // 获取选中文本的位置
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        
+        // 显示在选中文本上方，与第一行选中开始位置左对齐
+        setMenuPosition({ 
+          x: rect.left + window.scrollX,  // 左对齐
+          y: rect.top + window.scrollY - 50
+        });
+      } else {
+        // 降级方案：鼠标点击位置
+        setMenuPosition({ x: e.clientX, y: e.clientY - 50 });
+      }
+    };
+
+    const handleClick = () => {
+      setMenuPosition(null);
+      setIsSelectorOpen(false);
+    };
+
+    const handleScroll = () => {
+      // 滚动时隐藏菜单
+      setMenuPosition(null);
+      setIsSelectorOpen(false);
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('click', handleClick);
+    document.addEventListener('scroll', handleScroll, true); // true 表示捕获阶段，可以捕获所有滚动
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('click', handleClick);
+      document.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [editor]);
+
+  if (!editor || !menuPosition) return null;
 
   const getCurrentNodeType = () => {
     if (editor.isActive('heading', { level: 1 })) return t('toolbar.h1');
@@ -34,17 +87,13 @@ export const EditorBubbleMenu: React.FC<EditorBubbleMenuProps> = ({ editor, onAi
   };
 
   return (
-    <BubbleMenu 
-      editor={editor} 
-      tippyOptions={{ duration: 100, maxWidth: 600 }} 
-      shouldShow={({ editor }) => {
-        // Do not show if mouse is down (user is dragging selection)
-        if (isMouseDown) return false;
-
-        // Standard Tiptap checks
-        return !editor.state.selection.empty && !editor.isActive('image') && !editor.isActive('codeBlock');
+    <div
+      className="fixed z-50 flex items-center gap-1 bg-white rounded-lg shadow-xl border border-gray-200 p-1 animate-in fade-in zoom-in-95 duration-100"
+      style={{
+        top: `${menuPosition.y}px`,
+        left: `${menuPosition.x}px`,
       }}
-      className="flex items-center gap-1 bg-white rounded-lg shadow-xl border border-gray-200 p-1 animate-in fade-in zoom-in-95"
+      onClick={(e) => e.stopPropagation()}
     >
       {/* Block Type Selector */}
       <div className="relative">
@@ -154,6 +203,6 @@ export const EditorBubbleMenu: React.FC<EditorBubbleMenuProps> = ({ editor, onAi
         {t('bubble.ai')}
       </button>
 
-    </BubbleMenu>
+    </div>
   );
 };
