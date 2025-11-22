@@ -1,16 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useEditor, EditorContent, ReactNodeViewRenderer } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
-import Image from '@tiptap/extension-image';
-import Link from '@tiptap/extension-link';
-import Highlight from '@tiptap/extension-highlight';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import Table from '@tiptap/extension-table';
-import TableRow from '@tiptap/extension-table-row';
-import TableCell from '@tiptap/extension-table-cell';
-import TableHeader from '@tiptap/extension-table-header';
-import Underline from '@tiptap/extension-underline';
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { StarterKit } from '@tiptap/starter-kit';
+import { Placeholder } from '@tiptap/extension-placeholder';
+import { Image } from '@tiptap/extension-image';
+import { Link } from '@tiptap/extension-link';
+import { Highlight } from '@tiptap/extension-highlight';
+import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { Underline } from '@tiptap/extension-underline';
+import { Markdown } from '@tiptap/markdown';
 import { common, createLowlight } from 'lowlight';
 import { SlashMenu } from './SlashMenu';
 import { Toolbar } from './Toolbar';
@@ -46,9 +49,10 @@ const DEFAULT_COVERS = [
 interface EditorProps {
   initialContent?: string;
   onChange?: (content: string) => void;
+  onSave?: () => void;
 }
 
-export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
+export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave }) => {
   const { t } = useTranslation();
   const [slashMenuPos, setSlashMenuPos] = useState<{ x: number, y: number } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -93,6 +97,46 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
       TableRow,
       TableHeader,
       TableCell,
+      Markdown,
+      // Markdown 粘贴增强
+      Extension.create({
+        name: 'PasteMarkdown',
+        addProseMirrorPlugins() {
+          const editor = this.editor;
+          return [
+            new Plugin({
+              key: new PluginKey('pasteMarkdown'),
+              props: {
+                handlePaste: (view: any, event: ClipboardEvent) => {
+                  const text = event.clipboardData?.getData('text/plain');
+                  const html = event.clipboardData?.getData('text/html');
+                  
+                  // 如果已经有 HTML，说明是富文本粘贴，使用默认处理
+                  if (html && html.trim()) {
+                    return false;
+                  }
+                  
+                  if (!text || !text.trim()) return false;
+                  
+                  // 检测是否包含 Markdown 语法
+                  const hasMarkdown = /(\*\*|__|\*|_|#{1,6}\s|```|~~|\[.*\]\(.*\)|^[-*]\s|^\d+\.\s)/m.test(text);
+                  
+                  if (hasMarkdown) {
+                    // 把 Markdown → JSON
+                    const json = (editor as any).markdown.parse(text);
+                    
+                    // 插入
+                    editor.commands.insertContent(json);
+                    return true;
+                  }
+                  
+                  return false;
+                },
+              },
+            }),
+          ];
+        },
+      }),
     ],
     content: initialContent || '',
     editorProps: {
@@ -100,7 +144,20 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
         // Updated classes: flex-1 and h-full to ensure it takes up space
         class: 'prose prose-lg focus:outline-none max-w-none flex-1 h-full min-h-[60vh]',
       },
-      handleDOMEvents: {},
+      handleDOMEvents: {
+        keydown: (view, event) => {
+          // 拦截 Cmd+S / Ctrl+S，阻止浏览器默认保存对话框
+          if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+            event.preventDefault();
+            // 触发保存回调
+            if (onSave) {
+              onSave();
+            }
+            return true;
+          }
+          return false;
+        },
+      },
       handleClick: (view, pos, event) => {
         const { state } = view;
         const lastNode = state.doc.lastChild;

@@ -8,16 +8,47 @@ import { FileSystemProvider, useFileSystem } from './contexts/FileSystemContext'
 
 const AppContent = () => {
   const { t, language, setLanguage } = useTranslation();
-  const { getActiveFile, activeFileId, setActiveFileId, updateItemContent, isLoading } = useFileSystem();
+  const { getActiveFile, activeFileId, setActiveFileId, updateItemContent, updateItemName, isLoading } = useFileSystem();
   
   const activeFile = getActiveFile();
   const [saveStatus, setSaveStatus] = React.useState<'saved' | 'saving'>('saved');
+  const [documentTitle, setDocumentTitle] = React.useState<string>('');
+  const currentContentRef = React.useRef<string>('');
 
   const toggleLanguage = () => {
     setLanguage(language === 'zh-CN' ? 'en-US' : 'zh-CN');
   };
 
+  // 从 HTML 内容中提取第一个 H1 标题
+  const extractH1Title = (htmlContent: string): string => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, 'text/html');
+    const h1 = doc.querySelector('h1');
+    return h1 ? h1.textContent?.trim() || '' : '';
+  };
+
+  // 手动保存时提取标题并保存
+  const handleManualSave = useCallback(() => {
+    if (activeFileId && currentContentRef.current) {
+      // 提取并更新标题
+      const title = extractH1Title(currentContentRef.current);
+      
+      if (title) {
+        setDocumentTitle(title);
+        // 同时更新侧边栏的文件名
+        updateItemName(activeFileId, title);
+      }
+      
+      // 保存内容
+      setSaveStatus('saving');
+      updateItemContent(activeFileId, currentContentRef.current).then(() => {
+        setTimeout(() => setSaveStatus('saved'), 500);
+      });
+    }
+  }, [activeFileId, updateItemContent, updateItemName]);
+
   const handleEditorChange = useCallback((content: string) => {
+    currentContentRef.current = content;
     if (activeFileId) {
         setSaveStatus('saving');
         updateItemContent(activeFileId, content).then(() => {
@@ -26,6 +57,18 @@ const AppContent = () => {
         });
     }
   }, [activeFileId, updateItemContent]);
+
+  // 当打开文件时，初始化标题
+  useEffect(() => {
+    if (activeFile && activeFile.content) {
+      const title = extractH1Title(activeFile.content);
+      setDocumentTitle(title);
+      currentContentRef.current = activeFile.content;
+    } else {
+      setDocumentTitle('');
+      currentContentRef.current = '';
+    }
+  }, [activeFileId, activeFile?.content]);
 
   if (isLoading) {
       return <div className="min-h-screen flex items-center justify-center text-lark-blue"><Loader2 className="animate-spin" /></div>;
@@ -53,7 +96,7 @@ const AppContent = () => {
                                 {t('nav.workspace')}
                             </span> 
                             <span className="text-gray-300">/</span> 
-                            <span className="text-gray-900">{activeFile.name || t('nav.untitled')}</span>
+                            <span className="text-gray-900">{documentTitle || activeFile.name || t('nav.untitled')}</span>
                         </span>
                     </div>
                     
@@ -93,6 +136,7 @@ const AppContent = () => {
                         key={activeFile.id} // Force re-mount when file changes
                         initialContent={activeFile.content || ''}
                         onChange={handleEditorChange}
+                        onSave={handleManualSave}
                     />
                 </div>
               </>
