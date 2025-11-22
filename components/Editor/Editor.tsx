@@ -134,7 +134,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
     editorProps: {
       attributes: {
         // Updated classes: flex-1 and h-full to ensure it takes up space
-        class: 'prose prose-lg focus:outline-none max-w-none mx-auto flex-1 h-full min-h-[60vh]',
+        class: 'prose prose-lg focus:outline-none max-w-none flex-1 h-full min-h-[60vh]',
       },
       handleDOMEvents: {
         contextmenu: (view, event) => {
@@ -330,8 +330,56 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
 
   // Helper to ensure focus when clicking empty space
   const handleEditorClick = (e: React.MouseEvent) => {
-    // Only focus if clicking the container directly, not children
-    if (editor && e.target === e.currentTarget) {
+    if (!editor) return;
+    
+    // 只处理点击容器本身的情况（不是子元素）
+    if (e.target !== e.currentTarget) {
+      return;
+    }
+    
+    // 获取点击的坐标
+    let clickX = e.clientX;
+    const clickY = e.clientY;
+    
+    // 使用编辑器的 coordsAtPos 来找到最接近的位置
+    const editorView = editor.view;
+    const editorRect = editorView.dom.getBoundingClientRect();
+    
+    // 如果点击在编辑器下方的空白区域，定位到末尾
+    if (clickY > editorRect.bottom) {
+      editor.commands.focus('end');
+      return;
+    }
+    
+    // 如果点击在编辑器上方，定位到开头
+    if (clickY < editorRect.top) {
+      editor.commands.focus('start');
+      return;
+    }
+    
+    // 如果点击在编辑器左侧的 padding 区域，调整 x 到编辑器左边界
+    // 这样可以定位到该行的开始位置
+    if (clickX < editorRect.left) {
+      clickX = editorRect.left + 1;
+      console.log('📍 点击左侧空白，调整 x 到编辑器左边界');
+    }
+    
+    // 如果点击在编辑器右侧的 padding 区域，调整 x 到编辑器右边界
+    if (clickX > editorRect.right) {
+      clickX = editorRect.right - 1;
+      console.log('📍 点击右侧空白，调整 x 到编辑器右边界');
+    }
+    
+    // 尝试在点击位置附近找到合适的位置
+    // 使用 posAtCoords 来找到最接近的文档位置
+    const pos = editorView.posAtCoords({ left: clickX, top: clickY });
+    
+    if (pos) {
+      console.log('✅ 定位到位置:', pos.pos);
+      editor.commands.focus();
+      editor.commands.setTextSelection(pos.pos);
+    } else {
+      console.log('❌ 找不到位置，定位到末尾');
       editor.commands.focus('end');
     }
   };
@@ -346,12 +394,12 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
 
       <div className="flex flex-1 relative">
         <div 
-          className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 min-h-full cursor-text flex flex-col"
-          onMouseDown={handleEditorClick}
+          className="flex-1 max-w-4xl mx-auto py-12 px-16 min-h-full cursor-text flex flex-col"
+          onClick={handleEditorClick}
         >
            <div className="group relative w-full mb-8 transition-all shrink-0">
              {coverImage ? (
-               <div className="relative w-full h-48 md:h-64 rounded-t-xl overflow-hidden shadow-sm group-hover:shadow-md transition-all">
+               <div className="relative w-full h-48 md:h-64 rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition-all">
                   <img src={coverImage} alt="Cover" className="w-full h-full object-cover object-center" />
                   <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                      <button 
