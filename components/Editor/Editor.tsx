@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useEditor, EditorContent, ReactNodeViewRenderer } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -19,23 +19,46 @@ import { ContextMenu } from './ContextMenu';
 import { CodeBlockComponent } from './CodeBlockComponent';
 import { generateCompletion } from '../../services/geminiService';
 import { saveImage } from '../../services/imageService';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Shuffle, X, ImageIcon as LucideImage } from 'lucide-react';
 import { useTranslation } from '../../contexts/I18nContext';
 
 // Initialize lowlight for syntax highlighting
 const lowlight = createLowlight(common);
 
-export const Editor: React.FC = () => {
+// The specific default cover requested (Sunset Beach)
+const DEFAULT_COVER_URL = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200';
+
+// Curated list of "Universal" covers for shuffling
+const DEFAULT_COVERS = [
+  'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+  'https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+  'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+  'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+  'https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+  'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+  'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+  'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+  'https://images.unsplash.com/photo-1536514072410-250c33297c02?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200',
+];
+
+interface EditorProps {
+  initialContent?: string;
+  onChange?: (content: string) => void;
+}
+
+export const Editor: React.FC<EditorProps> = ({ initialContent, onChange }) => {
   const { t } = useTranslation();
   const [slashMenuPos, setSlashMenuPos] = useState<{ x: number, y: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [coverImage, setCoverImage] = useState<string | null>(DEFAULT_COVER_URL);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        codeBlock: false, // Disable default code block to use Lowlight
+        codeBlock: false,
       }),
       Placeholder.configure({
         placeholder: ({ node }) => {
@@ -65,10 +88,7 @@ export const Editor: React.FC = () => {
       TableHeader,
       TableCell,
     ],
-    content: `
-      <h1>${t('editor.welcome')}</h1>
-      <p>${t('editor.initial_text')}</p>
-    `,
+    content: initialContent || '',
     editorProps: {
       attributes: {
         class: 'prose prose-lg focus:outline-none max-w-none mx-auto',
@@ -79,7 +99,6 @@ export const Editor: React.FC = () => {
             const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
             
             if (pos) {
-                // Move cursor to the right-clicked position so actions apply there
                 const { tr } = view.state;
                 const selection = view.state.selection.constructor.near(view.state.doc.resolve(pos.pos));
                 view.dispatch(tr.setSelection(selection));
@@ -90,28 +109,23 @@ export const Editor: React.FC = () => {
         }
       },
       handleClick: (view, pos, event) => {
-        // Logic to escape CodeBlock if clicking below it
         const { state } = view;
         const lastNode = state.doc.lastChild;
-        
         if (lastNode && lastNode.type.name === 'codeBlock') {
           const lastNodePos = state.doc.content.size - lastNode.nodeSize;
           const nodeDom = view.nodeDOM(lastNodePos) as HTMLElement;
-          
           if (nodeDom) {
             const rect = nodeDom.getBoundingClientRect();
-            // If click is significantly below the last code block
             if (event.clientY > rect.bottom + 10) {
               const transaction = state.tr.insert(
                 state.doc.content.size, 
                 state.schema.nodes.paragraph.create()
               );
-              // Move selection to the new paragraph
               const resolvedPos = transaction.doc.resolve(transaction.doc.content.size - 1);
               const selection = state.selection.constructor.near(resolvedPos);
               transaction.setSelection(selection);
               view.dispatch(transaction);
-              return true; // Prevent default behavior
+              return true;
             }
           }
         }
@@ -119,7 +133,6 @@ export const Editor: React.FC = () => {
       }
     },
     onUpdate: ({ editor }) => {
-       // Simple Slash Menu Trigger: Check if the last char is '/'
        const { state } = editor;
        const { selection } = state;
        const { $from } = selection;
@@ -134,30 +147,37 @@ export const Editor: React.FC = () => {
                setSlashMenuPos(null);
            }
        }
+
+       // Trigger onChange for auto-save
+       if (onChange) {
+           onChange(editor.getHTML());
+       }
     },
-    onSelectionUpdate: () => {
-        // If user clicks elsewhere, close context menu
-        // setContextMenu(null); // Handled by ContextMenu component's click listener
-    }
   });
 
   const handleInsertImage = async (file: File) => {
     if (!editor) return;
     try {
-        // Create object URL for immediate display
         const reader = new FileReader();
         reader.onload = (e) => {
             const src = e.target?.result as string;
             editor.chain().focus().setImage({ src }).run();
         };
         reader.readAsDataURL(file);
-        
-        // Persist
         await saveImage(file);
     } catch (err) {
         console.error(err);
         alert("Failed to load image");
     }
+  };
+
+  const handleAddDefaultCover = () => {
+    setCoverImage(DEFAULT_COVER_URL);
+  };
+
+  const handleRandomCover = () => {
+    const randomIndex = Math.floor(Math.random() * DEFAULT_COVERS.length);
+    setCoverImage(DEFAULT_COVERS[randomIndex]);
   };
 
   const handleAiGenerate = async () => {
@@ -169,15 +189,11 @@ export const Editor: React.FC = () => {
       }
 
       setIsAiLoading(true);
-      
       const context = editor.getText();
       const { selection } = editor.state;
       const prompt = editor.state.doc.textBetween(selection.from - 100, selection.from, '\n');
-
       const generated = await generateCompletion(prompt || t('editor.ai_prompt_default'), context);
-      
       setIsAiLoading(false);
-      
       if (generated) {
           editor.chain().focus().insertContent(generated).run();
       }
@@ -189,9 +205,7 @@ export const Editor: React.FC = () => {
 
     switch (action) {
         case 'copy':
-            // Copy text of the current block
             const { from, to } = editor.state.selection;
-            // If selection is empty, select the whole node text
             let text = "";
             if (from === to) {
                  const node = editor.state.selection.$from.parent;
@@ -204,7 +218,6 @@ export const Editor: React.FC = () => {
         case 'duplicate':
             const node = editor.state.selection.$head.parent;
             const json = node.toJSON();
-            // Insert after current block
             editor.chain().createParagraphNear().insertContent(json).run();
             break;
         case 'delete':
@@ -215,7 +228,6 @@ export const Editor: React.FC = () => {
              if (payload === 'h2') editor.chain().setHeading({ level: 2 }).run();
              if (payload === 'bullet-list') editor.chain().toggleBulletList().run();
             break;
-        // Table Actions
         case 'table-add-col-before': editor.chain().addColumnBefore().run(); break;
         case 'table-add-col-after': editor.chain().addColumnAfter().run(); break;
         case 'table-delete-col': editor.chain().deleteColumn().run(); break;
@@ -230,37 +242,56 @@ export const Editor: React.FC = () => {
   };
 
   const handleContainerClick = (e: React.MouseEvent) => {
-    // Only handle clicks directly on the container (whitespace)
     if (e.target !== e.currentTarget) return;
-
     if (editor) {
         const lastNode = editor.state.doc.lastChild;
         if (lastNode?.type.name === 'codeBlock') {
              editor.chain().insertContentAt(editor.state.doc.content.size, { type: 'paragraph' }).focus().run();
         } else {
-            // Ensure focus is at the end
             editor.commands.focus('end');
         }
     }
   };
 
   return (
-    <div className="flex flex-col w-full min-h-screen relative">
-      <Toolbar 
-        editor={editor} 
-        onInsertImage={handleInsertImage}
-      />
+    <div className="flex flex-col w-full min-h-full relative bg-white">
+      <Toolbar editor={editor} onInsertImage={handleInsertImage} />
 
       <div className="flex flex-1 relative">
         <div 
-          className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-32 min-h-screen bg-white cursor-text"
+          className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-32 min-h-full cursor-text"
           onClick={handleContainerClick}
         >
-           {/* Cover Image Placeholder */}
-           <div className="group relative w-full h-48 bg-gradient-to-r from-lark-100 to-gray-200 rounded-t-xl mb-8 overflow-hidden">
-               <div className="absolute inset-0 flex items-center justify-center text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                   {t('editor.add_cover')}
+           <div className="group relative w-full mb-8 transition-all">
+             {coverImage ? (
+               <div className="relative w-full h-48 md:h-64 rounded-t-xl overflow-hidden shadow-sm group-hover:shadow-md transition-all">
+                  <img src={coverImage} alt="Cover" className="w-full h-full object-cover object-center" />
+                  <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                     <button 
+                       onClick={handleRandomCover}
+                       className="bg-white/80 hover:bg-white text-xs font-medium text-gray-700 px-3 py-1.5 rounded backdrop-blur-sm flex items-center gap-1.5 shadow-sm transition-colors"
+                     >
+                        <Shuffle size={12} />
+                        {t('editor.change_cover')}
+                     </button>
+                     <button 
+                       onClick={() => setCoverImage(null)}
+                       className="bg-white/80 hover:bg-white text-xs font-medium text-gray-700 px-3 py-1.5 rounded backdrop-blur-sm flex items-center gap-1.5 shadow-sm transition-colors"
+                     >
+                        <X size={12} />
+                        {t('editor.remove_cover')}
+                     </button>
+                  </div>
                </div>
+             ) : (
+               <div 
+                 onClick={handleAddDefaultCover}
+                 className="h-12 border-b border-transparent hover:border-gray-200 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer transition-all px-2 -ml-2 rounded"
+               >
+                   <LucideImage size={16} className="mr-2" />
+                   <span className="text-sm font-medium">{t('editor.add_cover')}</span>
+               </div>
+             )}
            </div>
 
            <EditorContent editor={editor} className="min-h-[500px]" />

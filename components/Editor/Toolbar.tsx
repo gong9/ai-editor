@@ -95,7 +95,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage }) => {
   };
 
   return (
-    <div className="sticky top-14 z-30 bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1 shadow-sm overflow-x-auto no-scrollbar">
+    <div className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1 shadow-sm overflow-x-auto no-scrollbar">
       <div className="flex items-center gap-1 pr-2">
         <ToolbarButton 
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} 
