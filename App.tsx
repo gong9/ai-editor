@@ -1,0 +1,74 @@
+import React from 'react';
+import { Editor } from './components/Editor/Editor';
+import { CheckCircle2, Languages } from 'lucide-react';
+import { I18nProvider, useTranslation } from './contexts/I18nContext';
+
+const AppContent = () => {
+  const { t, language, setLanguage } = useTranslation();
+
+  const toggleLanguage = () => {
+    setLanguage(language === 'zh-CN' ? 'en-US' : 'zh-CN');
+  };
+
+  return (
+    <div className="min-h-screen bg-white text-gray-900 selection:bg-lark-blue/20 selection:text-lark-blueHover">
+      {/* Navigation / Header - Lark style */}
+      <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 h-14 flex items-center justify-between px-4 lg:px-8">
+        <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-lark-blue rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                L
+            </div>
+            <span className="font-medium text-gray-600 text-sm flex items-center gap-2">
+                {t('nav.workspace')} <span className="text-gray-300">/</span> {t('nav.untitled')}
+            </span>
+        </div>
+        
+        <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <CheckCircle2 size={14} className="text-green-500" />
+                <span>{t('nav.saved')}</span>
+            </div>
+            
+            <button 
+              onClick={toggleLanguage}
+              className="text-gray-600 hover:bg-gray-100 p-1.5 rounded-md transition-colors"
+              title="Switch Language"
+            >
+              <Languages size={18} />
+            </button>
+
+            <button className="text-sm font-medium text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-md transition-colors">
+                {t('nav.share')}
+            </button>
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-400 to-lark-blue"></div>
+        </div>
+      </nav>
+
+      <main className="flex-1 w-full">
+        <Editor />
+      </main>
+
+      {/* Help / Footer Hint */}
+      <div className="fixed bottom-4 left-4 text-xs text-gray-400 hidden lg:block">
+        {t('footer.hint').split('/').map((part, i, arr) => (
+            <React.Fragment key={i}>
+                {part}
+                {i < arr.length - 1 && (
+                    <kbd className="bg-gray-100 px-1 py-0.5 rounded border border-gray-200 text-gray-500 font-sans mx-1">/</kbd>
+                )}
+            </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+function App() {
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
+  );
+}
+
+export default App;

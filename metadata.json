@@ -1,0 +1,5 @@
+{
+  "name": "LarkLite Editor",
+  "description": "A powerful, block-based rich text editor inspired by Feishu/Lark, featuring slash commands, markdown shortcuts, and AI-powered writing assistance.",
+  "requestFramePermissions": []
+}
