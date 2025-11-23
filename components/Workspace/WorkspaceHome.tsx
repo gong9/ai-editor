@@ -5,7 +5,32 @@ import { useTranslation } from '../../contexts/I18nContext';
 
 export const WorkspaceHome: React.FC = () => {
   const { items, createItem, setActiveFileId } = useFileSystem();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+
+  // 根据北京时间获取问候语
+  const getGreeting = () => {
+    // 获取北京时间（UTC+8）
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const beijingTime = new Date(utc + (3600000 * 8));
+    const hour = beijingTime.getHours();
+
+    if (language === 'zh-CN') {
+      if (hour >= 0 && hour < 6) return '凌晨好，夜猫子';
+      if (hour >= 6 && hour < 12) return '早安，开始创作吧';
+      if (hour >= 12 && hour < 14) return '午安，继续加油';
+      if (hour >= 14 && hour < 18) return '下午好，创作愉快';
+      if (hour >= 18 && hour < 22) return '晚上好，灵感之夜';
+      return '夜深了，注意休息';
+    } else {
+      if (hour >= 0 && hour < 6) return 'Late Night, Night Owl';
+      if (hour >= 6 && hour < 12) return 'Good Morning';
+      if (hour >= 12 && hour < 14) return 'Good Noon';
+      if (hour >= 14 && hour < 18) return 'Good Afternoon';
+      if (hour >= 18 && hour < 22) return 'Good Evening';
+      return 'Good Night, Take a Rest';
+    }
+  };
 
   const recentFiles = items
     .filter(i => i.type === 'file')
@@ -17,8 +42,8 @@ export const WorkspaceHome: React.FC = () => {
       <div className="max-w-5xl mx-auto px-8 py-12">
         {/* Welcome Header */}
         <div className="mb-12">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">{t('workspace.welcome')}</h1>
-          <p className="text-gray-500">Everything starts with an idea.</p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">{getGreeting()}</h1>
+          <p className="text-gray-500">{language === 'zh-CN' ? '一切始于一个想法。' : 'Everything starts with an idea.'}</p>
         </div>
 
         {/* Actions */}

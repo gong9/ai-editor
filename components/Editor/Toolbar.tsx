@@ -16,7 +16,8 @@ import {
   Highlighter,
   Link as LinkIcon,
   Image as ImageIcon,
-  Table
+  Table,
+  Sparkles
 } from 'lucide-react';
 import { useTranslation } from '../../contexts/I18nContext';
 
@@ -24,6 +25,7 @@ interface ToolbarProps {
   editor: Editor | null;
   onInsertImage: (file: File) => void;
   onLinkClick: () => void;
+  onCorrectionClick: () => void;
 }
 
 interface ToolbarButtonProps {
@@ -58,7 +60,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
 
 const Divider = () => <div className="w-px h-4 bg-gray-200 mx-1" />;
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage, onLinkClick }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage, onLinkClick, onCorrectionClick }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -209,6 +211,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage, onLinkC
             accept="image/*"
             onChange={onFileChange}
         />
+      </div>
+
+      <Divider />
+
+      <div className="flex items-center gap-1 px-2">
+        <ToolbarButton
+          onClick={onCorrectionClick}
+          title="AI 校对"
+          isActive={false} // Never active state, just a trigger
+        >
+           <Sparkles size={18} className="text-purple-500" />
+        </ToolbarButton>
       </div>
     </div>
   );

@@ -23,8 +23,29 @@ import { CodeBlockComponent } from './CodeBlockComponent';
 import { LinkModal } from './LinkModal';
 import { generateCompletion } from '../../services/geminiService';
 import { saveImage } from '../../services/imageService';
-import { Loader2, Shuffle, X, ImageIcon as LucideImage } from 'lucide-react';
+import { Loader2, Shuffle, X, ImageIcon as LucideImage, Sparkles } from 'lucide-react';
 import { useTranslation } from '../../contexts/I18nContext';
+
+import { CorrectionPanel } from './CorrectionPanel';
+import { 
+    type CorrectionItem
+} from '../../utils/annotation';
+import { extractTextFromProseMirror } from '../../utils/annotation/pm-text-extraction';
+import { convertToProseMirrorPositions } from '../../utils/annotation/position-converter';
+import { CorrectionExtension } from '../../extensions/CorrectionExtension';
+import { streamCorrection } from '../../services/correctionService';
+
+const EditorStyles = `
+  .correction-highlight {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .correction-highlight-active {
+    background-color: rgba(254, 202, 202, 0.5) !important;
+    border-bottom: 2px solid #b91c1c !important;
+  }
+`;
 
 // Initialize lowlight for syntax highlighting
 const lowlight = createLowlight(common);
@@ -63,11 +84,22 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [linkModalData, setLinkModalData] = useState({ text: '', url: '' });
 
+  // Correction State
+  const [isCorrectionPanelOpen, setIsCorrectionPanelOpen] = useState(false);
+  const [checkResult, setCheckResult] = useState<CorrectionItem[]>([]);
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
+  const [correctionProgress, setCorrectionProgress] = useState({ current: 0, total: 0 });
+  
+  // Refs
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+  const outerRef = useRef<HTMLDivElement>(null);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         codeBlock: false,
       }),
+      CorrectionExtension,
       Placeholder.configure({
         placeholder: ({ node }) => {
             if (node.type.name === 'heading') {
@@ -183,7 +215,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
         return false;
       }
     },
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor, transaction }) => {
        const { state } = editor;
        const { selection } = state;
        const { $from } = selection;
@@ -205,6 +237,121 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
        }
     },
   });
+
+  // Set up click handler for corrections
+  useEffect(() => {
+    if (!editor) return;
+    
+    const handleCorrectionClickInternal = (id: string) => {
+      setActiveHighlightId(id);
+      setIsCorrectionPanelOpen(true);
+      
+      // Update active state in plugin
+      editor.commands.setActiveCorrection(id);
+      
+      // Scroll panel to item
+      const cardId = `correction-card-${id}`;
+      const card = document.getElementById(cardId);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+    
+    editor.commands.setCorrectionClickHandler(handleCorrectionClickInternal);
+  }, [editor]);
+
+
+  const handleCorrectionClick = () => {
+      if (!editor) return;
+      
+      setIsCorrectionPanelOpen(true);
+      setCheckResult([]);
+      editor.commands.clearCorrections();
+      setCorrectionProgress({ current: 0, total: 0 });
+
+      // Extract text directly from ProseMirror model to ensure consistency
+      const text = extractTextFromProseMirror(editor);
+      
+      setIsAiLoading(true);
+      streamCorrection(
+          text,
+          {
+            onData: (newItems) => {
+              // Convert text offsets to ProseMirror positions
+              const pmItems = convertToProseMirrorPositions(newItems, editor);
+              
+              // Add to editor decorations
+              editor.commands.addCorrections(pmItems);
+              
+              // Update state for panel
+              setCheckResult(prev => [...prev, ...pmItems]);
+            },
+            onProgress: (current, total) => {
+              setCorrectionProgress({ current, total });
+            },
+            onError: (err) => {
+              console.error(err);
+              setIsAiLoading(false);
+              setCorrectionProgress({ current: 0, total: 0 });
+              alert(t('editor.ai_error') || "Correction failed");
+            },
+            onComplete: () => {
+              setIsAiLoading(false);
+              setCorrectionProgress({ current: 0, total: 0 });
+            }
+          }
+      );
+  };
+
+  const handleAcceptCorrection = (item: CorrectionItem) => {
+      if (!editor) return;
+      
+      const suggestionText = item.suggestion[0][0];
+      
+      // Use ProseMirror positions directly
+      editor.chain()
+        .focus()
+        .insertContentAt({ from: item.from, to: item.to }, suggestionText)
+        .removeCorrection(item.id)
+        .run();
+      
+      // Remove from state
+      setCheckResult(prev => prev.filter(i => i.id !== item.id));
+  };
+
+  const handleIgnoreCorrection = (item: CorrectionItem) => {
+      if (editor) {
+        editor.commands.removeCorrection(item.id);
+      }
+      setCheckResult(prev => prev.filter(i => i.id !== item.id));
+  };
+
+  const handleSelectCorrection = (item: CorrectionItem) => {
+      if (!editor) return;
+      
+      setActiveHighlightId(item.id);
+      editor.commands.setActiveCorrection(item.id);
+      
+      // Scroll to the correction position in the editor
+      const pos = item.from;
+      editor.commands.focus();
+      editor.commands.setTextSelection(pos);
+      
+      // Scroll the editor view to show the correction
+      const coords = editor.view.coordsAtPos(pos);
+      const editorElement = editor.view.dom;
+      const scrollParent = editorElement.closest('.overflow-y-auto');
+      
+      if (scrollParent && coords) {
+        const parentRect = scrollParent.getBoundingClientRect();
+        const relativeTop = coords.top - parentRect.top;
+        
+        scrollParent.scrollBy({
+          top: relativeTop - parentRect.height / 2,
+          behavior: 'smooth'
+        });
+      }
+  };
 
   const handleInsertImage = async (file: File) => {
     if (!editor) return;
@@ -337,54 +484,116 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
 
   return (
     <div className="flex flex-col w-full min-h-full relative bg-white">
+      <style>{EditorStyles}</style>
       <Toolbar 
         editor={editor} 
         onInsertImage={handleInsertImage} 
         onLinkClick={openLinkModal}
+        onCorrectionClick={handleCorrectionClick}
       />
 
-      <div className="flex flex-1 relative">
+      <div className="flex flex-1 relative overflow-hidden">
         <div 
-          className="flex-1 max-w-4xl mx-auto py-12 px-16 min-h-full cursor-text flex flex-col"
-          onClick={handleEditorClick}
+            className={`flex-1 relative h-full overflow-y-auto transition-all duration-300 ease-in-out ${isCorrectionPanelOpen ? 'mr-[400px]' : ''}`} 
+            ref={outerRef}
         >
-           <div className="group relative w-full mb-8 transition-all shrink-0">
-             {coverImage ? (
-               <div className="relative w-full h-48 md:h-64 rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition-all">
-                  <img src={coverImage} alt="Cover" className="w-full h-full object-cover object-center" />
-                  <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                     <button 
-                       onClick={handleRandomCover}
-                       className="bg-white/80 hover:bg-white text-xs font-medium text-gray-700 px-3 py-1.5 rounded backdrop-blur-sm flex items-center gap-1.5 shadow-sm transition-colors"
-                     >
-                        <Shuffle size={12} />
-                        {t('editor.change_cover')}
-                     </button>
-                     <button 
-                       onClick={() => setCoverImage(null)}
-                       className="bg-white/80 hover:bg-white text-xs font-medium text-gray-700 px-3 py-1.5 rounded backdrop-blur-sm flex items-center gap-1.5 shadow-sm transition-colors"
-                     >
-                        <X size={12} />
-                        {t('editor.remove_cover')}
-                     </button>
-                  </div>
-               </div>
-             ) : (
-               <div 
-                 onClick={handleAddDefaultCover}
-                 className="h-12 border-b border-transparent hover:border-gray-200 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer transition-all px-2 -ml-2 rounded"
-               >
-                   <LucideImage size={16} className="mr-2" />
-                   <span className="text-sm font-medium">{t('editor.add_cover')}</span>
-               </div>
-             )}
-           </div>
+            <div className="max-w-4xl mx-auto relative min-h-full flex flex-col">
+                
+                {/* Cover Image Section - Moved outside editorContainerRef to avoid indexing text */}
+                <div className="group relative w-full mb-8 transition-all shrink-0 px-16 pt-12">
+                    {coverImage ? (
+                    <div className="relative w-full h-48 md:h-64 rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition-all">
+                        <img src={coverImage} alt="Cover" className="w-full h-full object-cover object-center" />
+                        <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                            onClick={handleRandomCover}
+                            className="bg-white/80 hover:bg-white text-xs font-medium text-gray-700 px-3 py-1.5 rounded backdrop-blur-sm flex items-center gap-1.5 shadow-sm transition-colors"
+                            >
+                                <Shuffle size={12} />
+                                {t('editor.change_cover')}
+                            </button>
+                            <button 
+                            onClick={() => setCoverImage(null)}
+                            className="bg-white/80 hover:bg-white text-xs font-medium text-gray-700 px-3 py-1.5 rounded backdrop-blur-sm flex items-center gap-1.5 shadow-sm transition-colors"
+                            >
+                                <X size={12} />
+                                {t('editor.remove_cover')}
+                            </button>
+                        </div>
+                    </div>
+                    ) : (
+                    <div 
+                        onClick={handleAddDefaultCover}
+                        className="h-12 border-b border-transparent hover:border-gray-200 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer transition-all px-2 -ml-2 rounded"
+                    >
+                        <LucideImage size={16} className="mr-2" />
+                        <span className="text-sm font-medium">{t('editor.add_cover')}</span>
+                    </div>
+                    )}
+                </div>
 
-           {/* Editor Content Area - Now set to flex-1 and h-full to occupy remaining space */}
-           <EditorContent editor={editor} className="flex-1 h-full flex flex-col" />
+                <div className="relative flex-1 px-16 pb-12">
+                    {/* Blocking Overlay & Loading State */}
+                    {isAiLoading && (
+                        <>
+                            {/* Transparent overlay to block interactions */}
+                            <div className="absolute inset-0 z-[9998] bg-white/0 cursor-wait" />
+                            
+                            {/* Floating Status Capsule - Positioned at Bottom */}
+                            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-bottom-2 fade-in duration-300 pointer-events-none">
+                                <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-indigo-100 rounded-xl px-5 py-3 flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
+                                        <span className="text-sm font-semibold text-gray-800">正在校对中</span>
+                                    </div>
+                                    
+                                    {correctionProgress.total > 0 && (
+                                        <>
+                                            <div className="w-px h-4 bg-gray-200"></div>
+                                            <div className="flex items-center gap-2 min-w-[120px]">
+                                                <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full bg-indigo-600 rounded-full transition-all duration-300 ease-out"
+                                                        style={{ width: `${(correctionProgress.current / correctionProgress.total) * 100}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-xs font-bold text-indigo-600 w-8 text-right">
+                                                    {Math.round((correctionProgress.current / correctionProgress.total) * 100)}%
+                                                </span>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                    
+                    <div 
+                      ref={editorContainerRef} 
+                      className="relative z-0 min-h-full cursor-text flex flex-col flex-1"
+                      onClick={handleEditorClick}
+                    >
+                        <EditorContent editor={editor} className="flex-1 h-full flex flex-col" />
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <Outline editor={editor} />
+        {/* Right Sidebar */}
+        {isCorrectionPanelOpen ? (
+             <CorrectionPanel 
+                items={checkResult}
+                activeId={activeHighlightId}
+                onAccept={handleAcceptCorrection}
+                onIgnore={handleIgnoreCorrection}
+                onSelect={handleSelectCorrection}
+                isOpen={isCorrectionPanelOpen}
+                onClose={() => setIsCorrectionPanelOpen(false)}
+                isLoading={isAiLoading}
+             />
+        ) : (
+            <Outline editor={editor} />
+        )}
       </div>
 
       <SlashMenu 
@@ -411,22 +620,22 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
         initialUrl={linkModalData.url}
       />
 
-      <input 
-            type="file" 
-            ref={fileInputRef}
-            className="hidden"
-            style={{ display: 'none' }} 
-            accept="image/*"
-            onChange={(e) => {
-                if (e.target.files?.[0]) handleInsertImage(e.target.files[0]);
-            }}
-        />
 
-      {isAiLoading && (
-          <div className="fixed bottom-8 right-8 bg-white shadow-lg rounded-full px-4 py-2 flex items-center gap-2 border border-lark-blue animate-in slide-in-from-bottom-5 z-50">
-              <Loader2 className="animate-spin text-lark-blue" size={18} />
-              <span className="text-sm font-medium text-lark-blue">{t('editor.ai_loading')}</span>
-          </div>
+      {/* Floating Correction Result Toggle - Only visible if we have results but panel is closed */}
+      {!isCorrectionPanelOpen && checkResult.length > 0 && (
+        <button
+            onClick={() => setIsCorrectionPanelOpen(true)}
+            className="fixed right-8 bottom-8 z-50 bg-white border border-gray-200 shadow-lg p-3 rounded-full hover:bg-gray-50 transition-all group flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4"
+            title="查看校对结果"
+        >
+            <div className="bg-indigo-100 p-1.5 rounded-full">
+                <Sparkles size={18} className="text-indigo-600" />
+            </div>
+            <span className="font-medium text-gray-700 pr-1 text-sm">校对结果</span>
+            <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                {checkResult.length}
+            </span>
+        </button>
       )}
     </div>
   );
