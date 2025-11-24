@@ -15,6 +15,9 @@ export interface CorrectionItem {
   category: any;
   is_adopt?: number;
   select?: boolean;
+  result?: 'accepted' | 'ignored';
+  originalText?: string;
+  newText?: string;
 }
 
 export interface Annotation extends CorrectionItem {

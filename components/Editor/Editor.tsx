@@ -23,7 +23,7 @@ import { CodeBlockComponent } from './CodeBlockComponent';
 import { LinkModal } from './LinkModal';
 import { generateCompletion } from '../../services/geminiService';
 import { saveImage, compressImage, hydrateImages, loadImage } from '../../services/imageService';
-import { Loader2, Shuffle, X, ImageIcon as LucideImage, Sparkles } from 'lucide-react';
+import { Loader2, Shuffle, X, ImageIcon as LucideImage, Sparkles, AlertCircle } from 'lucide-react';
 import { useTranslation } from '../../contexts/I18nContext';
 
 import { CorrectionPanel } from './CorrectionPanel';
@@ -33,6 +33,7 @@ import {
 import { extractTextFromProseMirror } from '../../utils/annotation/pm-text-extraction';
 import { convertToProseMirrorPositions } from '../../utils/annotation/position-converter';
 import { CorrectionExtension } from '../../extensions/CorrectionExtension';
+import { correctionPluginKey } from '../../utils/annotation/correction-plugin';
 import { streamCorrection } from '../../services/correctionService';
 
 const EditorStyles = `
@@ -44,12 +45,35 @@ const EditorStyles = `
   .correction-highlight-active {
     background-color: rgba(254, 202, 202, 0.5) !important;
     border-bottom: 2px solid #b91c1c !important;
+    /* Force high priority over other styles */
+    z-index: 10;
+    position: relative;
+  }
+
+  .correction-accepted {
+    background-color: rgba(220, 252, 231, 0.5); /* green-100 */
+    border-radius: 2px;
+  }
+
+  /* Increase specificity significantly */
+  div.ProseMirror span.correction-accepted.correction-highlight-active {
+    background-color: rgba(134, 239, 172, 0.8) !important; /* green-300, higher opacity */
+    border-bottom: 3px solid #16a34a !important; /* green-600, thicker border */
   }
   
   /* Dark mode overrides */
   .dark .correction-highlight-active {
     background-color: rgba(153, 27, 27, 0.5) !important;
     border-bottom: 2px solid #ef4444 !important;
+  }
+
+  .dark .correction-accepted {
+    background-color: rgba(20, 83, 45, 0.5); /* green-900 with opacity */
+  }
+
+  .dark div.ProseMirror span.correction-accepted.correction-highlight-active {
+    background-color: rgba(34, 197, 94, 0.6) !important; /* green-500, higher opacity */
+    border-bottom: 3px solid #4ade80 !important; /* green-400 */
   }
 
   .dark .ProseMirror {
@@ -128,6 +152,13 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
   const [checkResult, setCheckResult] = useState<CorrectionItem[]>([]);
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
   const [correctionProgress, setCorrectionProgress] = useState({ current: 0, total: 0 });
+  const isInternalOperation = useRef(false);
+  const isUndoRedo = useRef(false);
+  
+  // Correction Removal Confirmation State
+  const [isRemovalModalOpen, setIsRemovalModalOpen] = useState(false);
+  const [correctionRemovalCandidate, setCorrectionRemovalCandidate] = useState<string[]>([]);
+  const [removalAction, setRemovalAction] = useState<'undo' | 'redo'>('undo');
   
   // Refs
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -219,6 +250,15 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
       },
       handleDOMEvents: {
         keydown: (view, event) => {
+          // Detect Undo/Redo shortcuts
+          if ((event.metaKey || event.ctrlKey) && (event.key === 'z' || event.key === 'y' || event.key === 'Z')) {
+              isUndoRedo.current = true;
+              // Reset after a short delay to allow onUpdate to fire
+              setTimeout(() => {
+                  isUndoRedo.current = false;
+              }, 100);
+          }
+
           // 拦截 Cmd+S / Ctrl+S，阻止浏览器默认保存对话框
           if ((event.metaKey || event.ctrlKey) && event.key === 's') {
             event.preventDefault();
@@ -275,6 +315,46 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
        // Trigger onChange for auto-save
        if (onChange) {
            onChange(editor.getHTML());
+       }
+
+       // Sync corrections state if plugin removed them due to edits
+       const pluginState = correctionPluginKey.getState(editor.state);
+       
+       // Check if we need to sync/confirm removal
+       if (pluginState && !isInternalOperation.current) {
+           const currentIds = new Set(pluginState.corrections.keys());
+           
+           // Find items that are about to be removed (exist in checkResult but not in plugin)
+           const itemsToRemove = checkResult.filter(item => !currentIds.has(item.id));
+           
+           if (itemsToRemove.length > 0) {
+               if (!isRemovalModalOpen && correctionRemovalCandidate.length === 0) {
+                   const idsToRemove = itemsToRemove.map(i => i.id);
+                   setCorrectionRemovalCandidate(idsToRemove);
+                   // If triggered by Undo/Redo shortcut, we want to Redo/Undo to cancel.
+                   // If triggered by Undo (Ctrl+Z), the action to Cancel is Redo.
+                   // If triggered by Manual Edit, the action to Cancel is Undo.
+                   setRemovalAction(isUndoRedo.current ? 'redo' : 'undo');
+                   setIsRemovalModalOpen(true);
+               }
+           } else {
+               if (!isRemovalModalOpen) {
+                   setCheckResult(prev => {
+                       const next = prev.filter(item => currentIds.has(item.id));
+                       const pluginItems = Array.from(pluginState.corrections.values());
+                       
+                       // If plugin has more items (e.g. after Undo), use plugin's list to restore
+                       // But we want to preserve our local state (like loading status? no, just result)
+                       // The plugin stores the full item including result, so we can trust it.
+                       
+                       if (pluginItems.length > next.length) {
+                           return pluginItems;
+                       }
+                       
+                       return next.length !== prev.length ? next : prev;
+                   });
+               }
+           }
        }
     },
   });
@@ -383,24 +463,115 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
   const handleAcceptCorrection = (item: CorrectionItem) => {
       if (!editor) return;
       
-      const suggestionText = item.suggestion[0][0];
+      isInternalOperation.current = true;
       
-      // Use ProseMirror positions directly
+      const suggestionText = item.suggestion[0][0];
+      const originalText = editor.state.doc.textBetween(item.from, item.to);
+      
+      const newItem: CorrectionItem = {
+          ...item,
+          // Update 'to' position based on new text length
+          to: item.from + suggestionText.length,
+          result: 'accepted',
+          originalText,
+          newText: suggestionText,
+      };
+
+      // Combine text change and state update into a SINGLE transaction
+      // This ensures that Undo/Redo treats them as one atomic operation
       editor.chain()
         .focus()
         .insertContentAt({ from: item.from, to: item.to }, suggestionText)
-        .removeCorrection(item.id)
+        .addCorrections([newItem])
         .run();
       
-      // Remove from state
-      setCheckResult(prev => prev.filter(i => i.id !== item.id));
+      // Update state locally
+      setCheckResult(prev => prev.map(i => i.id === item.id ? newItem : i));
+      
+      // Reset flag after a short delay to allow all updates to settle
+      setTimeout(() => {
+          isInternalOperation.current = false;
+      }, 50);
   };
 
   const handleIgnoreCorrection = (item: CorrectionItem) => {
-      if (editor) {
-        editor.commands.removeCorrection(item.id);
+      if (!editor) return;
+
+      isInternalOperation.current = true;
+
+      const newItem: CorrectionItem = {
+          ...item,
+          result: 'ignored',
+      };
+
+      // Update in plugin
+      editor.commands.addCorrections([newItem]);
+
+      // Update state
+      setCheckResult(prev => prev.map(i => i.id === item.id ? newItem : i));
+      
+      setTimeout(() => {
+          isInternalOperation.current = false;
+      }, 50);
+  };
+
+  const handleUndoCorrection = (item: CorrectionItem) => {
+      if (!editor) return;
+      
+      isInternalOperation.current = true;
+      
+      if (item.result === 'ignored') {
+          const newItem: CorrectionItem = {
+              ...item,
+              result: undefined,
+          };
+          
+          // For ignored items, only state update is needed
+          editor.chain()
+              .addCorrections([newItem])
+              .run();
+              
+          setCheckResult(prev => prev.map(i => i.id === item.id ? newItem : i));
+          
+      } else if (item.result === 'accepted') {
+          const currentText = editor.state.doc.textBetween(item.from, item.to);
+          
+          // Try to revert if text matches
+          if (currentText === item.newText && item.originalText !== undefined) {
+              const newItem: CorrectionItem = {
+                  ...item,
+                  to: item.from + item.originalText.length,
+                  result: undefined,
+                  originalText: undefined,
+                  newText: undefined,
+              };
+              
+              // Combine text revert and state update
+              editor.chain()
+                  .focus()
+                  .insertContentAt({ from: item.from, to: item.to }, item.originalText)
+                  .addCorrections([newItem])
+                  .run();
+              
+              setCheckResult(prev => prev.map(i => i.id === item.id ? newItem : i));
+          } else {
+              // Text changed, just reset status
+              const newItem: CorrectionItem = {
+                  ...item,
+                  result: undefined,
+              };
+              
+              editor.chain()
+                  .addCorrections([newItem])
+                  .run();
+                  
+              setCheckResult(prev => prev.map(i => i.id === item.id ? newItem : i));
+          }
       }
-      setCheckResult(prev => prev.filter(i => i.id !== item.id));
+      
+      setTimeout(() => {
+          isInternalOperation.current = false;
+      }, 50);
   };
 
   const handleSelectCorrection = (item: CorrectionItem) => {
@@ -408,26 +579,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
       
       setActiveHighlightId(item.id);
       editor.commands.setActiveCorrection(item.id);
-      
-      // Scroll to the correction position in the editor
-      const pos = item.from;
-      editor.commands.focus();
-      editor.commands.setTextSelection(pos);
-      
-      // Scroll the editor view to show the correction
-      const coords = editor.view.coordsAtPos(pos);
-      const editorElement = editor.view.dom;
-      const scrollParent = editorElement.closest('.overflow-y-auto');
-      
-      if (scrollParent && coords) {
-        const parentRect = scrollParent.getBoundingClientRect();
-        const relativeTop = coords.top - parentRect.top;
-        
-        scrollParent.scrollBy({
-          top: relativeTop - parentRect.height / 2,
-          behavior: 'smooth'
-        });
-      }
+      editor.commands.scrollToCorrection(item.id);
   };
 
   const handleInsertImage = async (file: File) => {
@@ -570,6 +722,42 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
     }
   };
 
+  const handleRemovalConfirm = () => {
+      // Remove the items from our local state that match the candidates
+      setCheckResult(prev => prev.filter(item => !correctionRemovalCandidate.includes(item.id)));
+      
+      // Also ensure they are removed from plugin? 
+      // They are already gone from plugin, that's why this flow triggered.
+      
+      setCorrectionRemovalCandidate([]);
+      setIsRemovalModalOpen(false);
+  };
+
+  const handleRemovalCancel = () => {
+      // Execute the reverse action to cancel the change
+      if (removalAction === 'redo') {
+          editor?.chain().redo().run();
+      } else {
+          editor?.chain().undo().run();
+      }
+      
+      // Manually restore the items to the plugin
+      // This is necessary because the history undo/redo mechanism might not automatically 
+      // restore the plugin state for custom plugins, or the restoration itself might 
+      // have triggered a "modification" check that removed the item again.
+      const itemsToRestore = checkResult.filter(item => correctionRemovalCandidate.includes(item.id));
+      
+      if (itemsToRestore.length > 0) {
+          // Add back with a slight delay to ensure the transaction is processed
+          setTimeout(() => {
+             editor?.commands.addCorrections(itemsToRestore);
+          }, 50);
+      }
+      
+      setCorrectionRemovalCandidate([]);
+      setIsRemovalModalOpen(false);
+  };
+
   return (
     <div className="flex flex-col w-full min-h-full relative bg-white dark:bg-gray-900 transition-colors duration-200">
       <style>{EditorStyles}</style>
@@ -676,6 +864,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
                 activeId={activeHighlightId}
                 onAccept={handleAcceptCorrection}
                 onIgnore={handleIgnoreCorrection}
+                onUndo={handleUndoCorrection}
                 onSelect={handleSelectCorrection}
                 isOpen={isCorrectionPanelOpen}
                 onClose={() => setIsCorrectionPanelOpen(false)}
@@ -710,6 +899,38 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
         initialUrl={linkModalData.url}
       />
 
+      {/* Removal Confirmation Modal */}
+      {isRemovalModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/20 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-5 max-w-[320px] w-full mx-4 border border-gray-100 dark:border-gray-700 transform scale-100 transition-all">
+                <div className="flex flex-col items-center text-center mb-5">
+                    <div className="mb-3 text-amber-500 dark:text-amber-400">
+                        <AlertCircle size={32} strokeWidth={1.5} />
+                    </div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1.5">
+                        移除校对建议？
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                        修改相关文本将导致当前建议失效。
+                    </p>
+                </div>
+                <div className="flex gap-2.5">
+                    <button
+                        onClick={handleRemovalCancel}
+                        className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-md text-xs font-medium transition-colors"
+                    >
+                        取消
+                    </button>
+                    <button
+                        onClick={handleRemovalConfirm}
+                        className="flex-1 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-xs font-medium shadow-sm transition-colors"
+                    >
+                        确认移除
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
 
       {/* Floating Correction Result Toggle - Only visible if we have results but panel is closed */}
       {!isCorrectionPanelOpen && checkResult.length > 0 && (

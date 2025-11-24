@@ -49,17 +49,28 @@ const createCorrectionDecoration = (item: CorrectionItem, isActive: boolean, doc
   if (isPositionInCodeBlock(doc, item.from, item.to)) {
     return null;
   }
+
+  // Don't create decoration if item is ignored
+  if (item.result === 'ignored') {
+    return null;
+  }
   
   const errorType = item.suggestion?.[0]?.[1];
   const color = errorType === 2 ? ERROR_COLORS.SEMANTIC : ERROR_COLORS.TYPO;
   
   const className = isActive 
-    ? 'correction-highlight correction-highlight-active'
-    : 'correction-highlight';
+    ? `correction-highlight correction-highlight-active${item.result === 'accepted' ? ' correction-accepted' : ''}`
+    : item.result === 'accepted'
+      ? 'correction-accepted'
+      : 'correction-highlight';
   
+  const style = item.result === 'accepted'
+    ? '' // Use class style
+    : `border-bottom: 2px solid rgba(${color}, 0.8); cursor: pointer;`;
+
   return Decoration.inline(item.from, item.to, {
     class: className,
-    style: `border-bottom: 2px solid rgba(${color}, 0.8); cursor: pointer;`,
+    style: style,
     'data-correction-id': item.id,
     'data-color': color,
   });
@@ -203,8 +214,16 @@ export const createCorrectionPlugin = (): Plugin<CorrectionPluginState> => {
             const newTo = tr.mapping.map(item.to);
             
             // Check if the range was directly edited
+            // If the transaction has meta property 'isCorrectionAction', we skip removal for that specific ID?
+            // No, easier way:
+            // When we accept/ignore, we are replacing the item anyway.
+            // The issue might be that when we type in the editor, we want to remove 'accepted' items if their text is touched.
+            
             if (isRangeModified(tr, item.from, item.to)) {
-              toRemove.push(id);
+                 // For accepted items, we definitely want to remove them if modified.
+                 // For pending items, we also want to remove them if modified.
+                 // So this logic seems correct.
+                 toRemove.push(id);
             } else {
               // Update positions
               const updatedItem = { ...item, from: newFrom, to: newTo };
