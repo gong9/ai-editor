@@ -26,39 +26,39 @@ export const CorrectionPanel: React.FC<CorrectionPanelProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="w-[400px] bg-white border-l border-gray-200 flex flex-col shrink-0 fixed right-0 top-[103px] bottom-0 z-20 shadow-[-4px_0_16px_rgba(0,0,0,0.05)] font-sans">
+    <div className="w-[400px] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 flex flex-col shrink-0 fixed right-0 top-[103px] bottom-0 z-20 shadow-[-4px_0_16px_rgba(0,0,0,0.05)] font-sans transition-colors duration-200">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-sm z-10">
+      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10">
         <div className="flex items-center gap-2">
-            <div className="bg-indigo-50 p-1.5 rounded-lg">
-                <Sparkles size={16} className="text-indigo-600" />
+            <div className="bg-indigo-50 dark:bg-indigo-900/30 p-1.5 rounded-lg">
+                <Sparkles size={16} className="text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
-                <h2 className="font-bold text-gray-800 text-sm leading-tight">智能校对</h2>
-                <p className="text-[10px] text-gray-400 font-medium">AI 辅助文本优化</p>
+                <h2 className="font-bold text-gray-800 dark:text-gray-100 text-sm leading-tight">智能校对</h2>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">AI 辅助文本优化</p>
             </div>
         </div>
         <div className="flex items-center gap-2">
             {items.length > 0 && (
-                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs font-bold">
+                <span className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full text-xs font-bold">
                     {items.length}
                 </span>
             )}
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 hover:bg-gray-50 p-1.5 rounded-md transition-all">
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 p-1.5 rounded-md transition-all">
                 <X size={16} />
             </button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gray-50/30">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gray-50/30 dark:bg-black/20">
         {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-                <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-4 shadow-sm ring-4 ring-green-50/50">
-                    <Check size={36} className="text-green-500" />
+                <div className="w-20 h-20 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4 shadow-sm ring-4 ring-green-50/50 dark:ring-green-900/10">
+                    <Check size={36} className="text-green-500 dark:text-green-400" />
                 </div>
-                <h3 className="font-semibold text-gray-800 mb-1.5">太棒了！</h3>
-                <p className="text-xs text-gray-500 max-w-[180px] leading-relaxed">
+                <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1.5">太棒了！</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[180px] leading-relaxed">
                     文章内容文采斐然，未发现明显的拼写或语义错误。
                 </p>
             </div>
@@ -79,10 +79,10 @@ export const CorrectionPanel: React.FC<CorrectionPanelProps> = ({
                   id={`correction-card-${item.id}`}
                   onClick={() => onSelect(item)}
                   className={`
-                    group relative bg-white rounded-lg border transition-all duration-200 cursor-pointer overflow-hidden
+                    group relative bg-white dark:bg-gray-800 rounded-lg border transition-all duration-200 cursor-pointer overflow-hidden
                     ${isActive 
-                        ? 'border-indigo-500 shadow-md z-10' 
-                        : 'border-gray-200 shadow-sm hover:border-indigo-300 hover:shadow-md'}
+                        ? 'border-indigo-500 dark:border-indigo-500 shadow-md z-10' 
+                        : 'border-gray-200 dark:border-gray-700 shadow-sm hover:border-indigo-300 dark:hover:border-indigo-500/50 hover:shadow-md'}
                   `}
                 >
                   {/* Left active strip */}
@@ -94,8 +94,8 @@ export const CorrectionPanel: React.FC<CorrectionPanelProps> = ({
                         <div className={`
                             inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border
                             ${isSemantic
-                                ? 'bg-amber-50 text-amber-600 border-amber-100'
-                                : 'bg-rose-50 text-rose-600 border-rose-100'}
+                                ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900/50'
+                                : 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/50'}
                         `}>
                             {errorType}
                         </div>
@@ -103,19 +103,19 @@ export const CorrectionPanel: React.FC<CorrectionPanelProps> = ({
 
                       {/* Main Comparison: Simplified Flow */}
                       <div className="flex items-center flex-wrap gap-2 text-sm mb-2.5 leading-relaxed">
-                         <span className="text-gray-400 line-through decoration-rose-300/60 decoration-2 break-all">
+                         <span className="text-gray-400 dark:text-gray-500 line-through decoration-rose-300/60 decoration-2 break-all">
                             {item.misspelledWord}
                          </span>
-                         <ArrowRight size={14} className="text-gray-300 shrink-0" />
-                         <span className="font-semibold text-gray-800 bg-indigo-50/50 px-1 py-0.5 rounded break-all border border-indigo-50">
+                         <ArrowRight size={14} className="text-gray-300 dark:text-gray-600 shrink-0" />
+                         <span className="font-semibold text-gray-800 dark:text-gray-100 bg-indigo-50/50 dark:bg-indigo-900/20 px-1 py-0.5 rounded break-all border border-indigo-50 dark:border-indigo-900/30">
                             {suggestionText}
                          </span>
                       </div>
 
                       {/* Description */}
                       <div className="flex items-start gap-1.5">
-                          <AlertCircle size={12} className="text-gray-400 mt-0.5 shrink-0" />
-                          <p className="text-xs text-gray-500 leading-relaxed">
+                          <AlertCircle size={12} className="text-gray-400 dark:text-gray-500 mt-0.5 shrink-0" />
+                          <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                               {description}
                           </p>
                       </div>
@@ -123,13 +123,15 @@ export const CorrectionPanel: React.FC<CorrectionPanelProps> = ({
 
                   {/* Footer Actions - Slimmer & Subtle */}
                   <div className={`
-                      flex border-t border-gray-50 ${hasSuggestion ? 'divide-x divide-gray-50' : ''}
+                      flex border-t border-gray-50 dark:border-gray-700 ${hasSuggestion ? 'divide-x divide-gray-50 dark:divide-gray-700' : ''}
                   `}>
                       <button
                         onClick={(e) => { e.stopPropagation(); onIgnore(item); }}
                         disabled={isLoading}
                         className={`flex-1 py-2 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors
-                            ${isLoading ? 'cursor-not-allowed opacity-50 text-gray-300' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}
+                            ${isLoading 
+                                ? 'cursor-not-allowed opacity-50 text-gray-300 dark:text-gray-600' 
+                                : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}
                         `}
                       >
                         <X size={13} />
@@ -140,7 +142,9 @@ export const CorrectionPanel: React.FC<CorrectionPanelProps> = ({
                             onClick={(e) => { e.stopPropagation(); onAccept(item); }}
                             disabled={isLoading}
                             className={`flex-1 py-2 flex items-center justify-center gap-1.5 text-xs font-bold transition-colors
-                                ${isLoading ? 'cursor-not-allowed opacity-50 text-indigo-300' : 'text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50'}
+                                ${isLoading 
+                                    ? 'cursor-not-allowed opacity-50 text-indigo-300 dark:text-indigo-800' 
+                                    : 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'}
                             `}
                         >
                             <Check size={13} />

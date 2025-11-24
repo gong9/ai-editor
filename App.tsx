@@ -2,13 +2,15 @@ import React, { useCallback, useEffect } from 'react';
 import { Editor } from './components/Editor/Editor';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { WorkspaceHome } from './components/Workspace/WorkspaceHome';
-import { CheckCircle2, Languages, Loader2 } from 'lucide-react';
+import { CheckCircle2, Languages, Loader2, Moon, Sun } from 'lucide-react';
 import { I18nProvider, useTranslation } from './contexts/I18nContext';
 import { FileSystemProvider, useFileSystem } from './contexts/FileSystemContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 
 const AppContent = () => {
   const { t, language, setLanguage } = useTranslation();
   const { getActiveFile, activeFileId, setActiveFileId, updateItemContent, updateItemName, isLoading } = useFileSystem();
+  const { theme, toggleTheme } = useTheme();
   
   const activeFile = getActiveFile();
   const [saveStatus, setSaveStatus] = React.useState<'saved' | 'saving'>('saved');
@@ -71,11 +73,11 @@ const AppContent = () => {
   }, [activeFileId, activeFile?.content]);
 
   if (isLoading) {
-      return <div className="min-h-screen flex items-center justify-center text-lark-blue"><Loader2 className="animate-spin" /></div>;
+      return <div className="min-h-screen flex items-center justify-center text-lark-blue dark:text-lark-blueHover"><Loader2 className="animate-spin" /></div>;
   }
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 selection:bg-lark-blue/20 selection:text-lark-blueHover flex overflow-hidden h-screen">
+    <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 selection:bg-lark-blue/20 selection:text-lark-blueHover flex overflow-hidden h-screen transition-colors duration-200">
       {/* Sidebar - Always visible on desktop */}
       <Sidebar />
 
@@ -85,23 +87,23 @@ const AppContent = () => {
           {activeFile ? (
               <>
                 {/* Navbar for Editor */}
-                <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 h-14 flex items-center justify-between px-4 lg:px-8 shrink-0">
+                <nav className="sticky top-0 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 h-14 flex items-center justify-between px-4 lg:px-8 shrink-0 transition-colors duration-200">
                     <div className="flex items-center gap-3">
                         {/* Breadcrumb */}
-                        <span className="font-medium text-gray-600 text-sm flex items-center gap-2">
+                        <span className="font-medium text-gray-600 dark:text-gray-400 text-sm flex items-center gap-2">
                             <span 
-                                className="cursor-pointer hover:text-gray-900 hover:underline transition-colors"
+                                className="cursor-pointer hover:text-gray-900 dark:hover:text-gray-200 hover:underline transition-colors"
                                 onClick={() => setActiveFileId(null)} // Go back to home
                             >
                                 {t('nav.workspace')}
                             </span> 
-                            <span className="text-gray-300">/</span> 
-                            <span className="text-gray-900">{documentTitle || activeFile.name || t('nav.untitled')}</span>
+                            <span className="text-gray-300 dark:text-gray-600">/</span> 
+                            <span className="text-gray-900 dark:text-gray-100">{documentTitle || activeFile.name || t('nav.untitled')}</span>
                         </span>
                     </div>
                     
                     <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500 transition-all">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 transition-all">
                             {saveStatus === 'saved' ? (
                                 <>
                                     <CheckCircle2 size={14} className="text-green-500" />
@@ -109,29 +111,36 @@ const AppContent = () => {
                                 </>
                             ) : (
                                 <>
-                                    <Loader2 size={14} className="animate-spin text-gray-400" />
+                                    <Loader2 size={14} className="animate-spin text-gray-400 dark:text-gray-500" />
                                     <span>{t('nav.saving')}</span>
                                 </>
                             )}
                         </div>
                         
+                        <button
+                          onClick={toggleTheme}
+                          className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 p-1.5 rounded-md transition-colors"
+                          title="Toggle Theme"
+                        >
+                          {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                        </button>
+
                         <button 
                         onClick={toggleLanguage}
-                        className="text-gray-600 hover:bg-gray-100 p-1.5 rounded-md transition-colors"
+                        className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 p-1.5 rounded-md transition-colors mr-2"
                         title="Switch Language"
                         >
                         <Languages size={18} />
                         </button>
 
-                        <button className="text-sm font-medium text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-md transition-colors">
-                            {t('nav.share')}
-                        </button>
+                        {/* Share button removed */}
+                        
                         <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-400 to-lark-blue"></div>
                     </div>
                 </nav>
                 
                 {/* Editor Container - Scrollable */}
-                <div className="flex-1 overflow-y-auto bg-white">
+                <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-900 transition-colors duration-200">
                     <Editor 
                         key={activeFile.id} // Force re-mount when file changes
                         initialContent={activeFile.content || ''}
@@ -142,11 +151,18 @@ const AppContent = () => {
               </>
           ) : (
               // Workspace Home (Dashboard)
-              <div className="flex-1 flex flex-col h-full">
-                   <nav className="h-14 border-b border-gray-100 px-4 flex items-center justify-end">
+              <div className="flex-1 flex flex-col h-full bg-white dark:bg-gray-900 transition-colors duration-200">
+                   <nav className="h-14 border-b border-gray-100 dark:border-gray-800 px-4 flex items-center justify-end">
+                        <button
+                          onClick={toggleTheme}
+                          className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 p-1.5 rounded-md transition-colors mr-2"
+                          title="Toggle Theme"
+                        >
+                          {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                        </button>
                         <button 
                             onClick={toggleLanguage}
-                            className="text-gray-600 hover:bg-gray-100 p-1.5 rounded-md transition-colors mr-2"
+                            className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 p-1.5 rounded-md transition-colors mr-2"
                             title="Switch Language"
                         >
                             <Languages size={18} />
@@ -159,12 +175,12 @@ const AppContent = () => {
 
           {/* Help / Footer Hint */}
           {activeFile && (
-            <div className="fixed bottom-4 left-64 text-xs text-gray-400 hidden lg:block pl-4">
+            <div className="fixed bottom-4 left-64 text-xs text-gray-400 dark:text-gray-500 hidden lg:block pl-4">
                 {t('footer.hint').split('/').map((part, i, arr) => (
                     <React.Fragment key={i}>
                         {part}
                         {i < arr.length - 1 && (
-                            <kbd className="bg-gray-100 px-1 py-0.5 rounded border border-gray-200 text-gray-500 font-sans mx-1">/</kbd>
+                            <kbd className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-sans mx-1">/</kbd>
                         )}
                     </React.Fragment>
                 ))}
@@ -179,7 +195,9 @@ function App() {
   return (
     <I18nProvider>
       <FileSystemProvider>
-        <AppContent />
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
       </FileSystemProvider>
     </I18nProvider>
   );

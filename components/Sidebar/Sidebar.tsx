@@ -49,10 +49,10 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="w-64 bg-[#f9f9fa] border-r border-gray-200 flex flex-col h-full select-none hidden md:flex">
+    <div className="w-64 bg-[#f9f9fa] dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full select-none hidden md:flex transition-colors duration-200">
       {/* Header */}
       <div className="p-4">
-         <div className="flex items-center gap-2 font-semibold text-gray-700 mb-4 px-2">
+         <div className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200 mb-4 px-2">
              <div className="w-6 h-6 bg-lark-blue rounded flex items-center justify-center text-white text-xs">L</div>
              {t('sidebar.my_space')}
          </div>
@@ -68,7 +68,7 @@ export const Sidebar: React.FC = () => {
              </button>
              <button 
                 onClick={() => createItem('folder', null, 'New Folder')}
-                className="px-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded transition-colors shadow-sm"
+                className="px-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded transition-colors shadow-sm"
                 title={t('sidebar.new_folder')}
              >
                 <FolderPlus size={14} />
@@ -81,7 +81,7 @@ export const Sidebar: React.FC = () => {
              <input 
                type="text" 
                placeholder={t('sidebar.search')}
-               className="w-full bg-white border border-gray-200 rounded pl-8 pr-2 py-1.5 text-xs focus:outline-none focus:border-lark-blue transition-colors"
+               className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded pl-8 pr-2 py-1.5 text-xs text-gray-900 dark:text-gray-200 focus:outline-none focus:border-lark-blue dark:focus:border-lark-blue transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
              />
          </div>
       </div>
@@ -92,13 +92,13 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-gray-200 bg-white/50">
-          <button className="flex items-center gap-3 w-full px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">
-             <Trash2 size={16} className="text-gray-400" />
+      <div className="p-3 border-t border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50">
+          <button className="flex items-center gap-3 w-full px-2 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors">
+             <Trash2 size={16} className="text-gray-400 dark:text-gray-500" />
              {t('sidebar.trash')}
           </button>
-          <button className="flex items-center gap-3 w-full px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">
-             <Settings size={16} className="text-gray-400" />
+          <button className="flex items-center gap-3 w-full px-2 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors">
+             <Settings size={16} className="text-gray-400 dark:text-gray-500" />
              {t('sidebar.settings')}
           </button>
       </div>

@@ -50,7 +50,9 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
     }}
     disabled={disabled}
     className={`p-1.5 rounded transition-colors ${
-      isActive ? 'bg-lark-100 text-lark-blue' : 'text-gray-600 hover:bg-gray-100'
+      isActive 
+        ? 'bg-lark-100 text-lark-blue dark:bg-lark-blue/20 dark:text-lark-blueHover' 
+        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
     } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     title={title}
   >
@@ -58,7 +60,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   </button>
 );
 
-const Divider = () => <div className="w-px h-4 bg-gray-200 mx-1" />;
+const Divider = () => <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />;
 
 export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage, onLinkClick, onCorrectionClick }) => {
   const { t } = useTranslation();
@@ -79,7 +81,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage, onLinkC
   };
 
   return (
-    <div className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-2 flex items-center gap-1 shadow-sm overflow-x-auto no-scrollbar">
+    <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 px-4 py-2 flex items-center gap-1 shadow-sm overflow-x-auto no-scrollbar transition-colors duration-200">
       <div className="flex items-center gap-1 pr-2">
         <ToolbarButton 
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} 
@@ -221,7 +223,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage, onLinkC
           title="AI 校对"
           isActive={false} // Never active state, just a trigger
         >
-           <Sparkles size={18} className="text-purple-500" />
+           <Sparkles size={18} className="text-purple-500 dark:text-purple-400" />
         </ToolbarButton>
       </div>
     </div>

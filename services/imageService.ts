@@ -1,8 +1,8 @@
 import localforage from 'localforage';
 import { generateId } from '../utils/uid';
 
-// Initialize localforage
-localforage.config({
+// Initialize localforage instance for images
+const imageStore = localforage.createInstance({
   name: 'LarkLiteEditor',
   storeName: 'images',
   description: 'Storage for editor images'
@@ -66,7 +66,7 @@ export const saveImage = async (file: File): Promise<string> => {
     try {
         const compressedBlob = await compressImage(file);
         const id = generateId();
-        await localforage.setItem(id, compressedBlob);
+        await imageStore.setItem(id, compressedBlob);
         return id;
     } catch (error) {
         console.error("Error saving image:", error);
@@ -81,7 +81,7 @@ export const loadImage = async (id: string): Promise<string | null> => {
             return id;
         }
         
-        const blob = await localforage.getItem<Blob>(id);
+        const blob = await imageStore.getItem<Blob>(id);
         if (blob) {
             return URL.createObjectURL(blob);
         }
@@ -90,4 +90,31 @@ export const loadImage = async (id: string): Promise<string | null> => {
         console.error("Error loading image:", error);
         return null;
     }
+};
+
+/**
+ * Parses HTML content and replaces placeholder images with blob URLs from IndexedDB
+ */
+export const hydrateImages = async (html: string): Promise<string> => {
+    if (!html) return '';
+    if (!html.includes('data-storage-id')) return html;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const images = doc.querySelectorAll('img[data-storage-id]');
+    
+    if (images.length === 0) return html;
+
+    const promises = Array.from(images).map(async (img) => {
+        const id = img.getAttribute('data-storage-id');
+        if (id) {
+            const url = await loadImage(id);
+            if (url) {
+                img.setAttribute('src', url);
+            }
+        }
+    });
+    
+    await Promise.all(promises);
+    return doc.body.innerHTML;
 };

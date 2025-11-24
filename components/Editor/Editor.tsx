@@ -22,7 +22,7 @@ import { EditorBubbleMenu } from './EditorBubbleMenu';
 import { CodeBlockComponent } from './CodeBlockComponent';
 import { LinkModal } from './LinkModal';
 import { generateCompletion } from '../../services/geminiService';
-import { saveImage } from '../../services/imageService';
+import { saveImage, compressImage, hydrateImages, loadImage } from '../../services/imageService';
 import { Loader2, Shuffle, X, ImageIcon as LucideImage, Sparkles } from 'lucide-react';
 import { useTranslation } from '../../contexts/I18nContext';
 
@@ -45,10 +45,48 @@ const EditorStyles = `
     background-color: rgba(254, 202, 202, 0.5) !important;
     border-bottom: 2px solid #b91c1c !important;
   }
+  
+  /* Dark mode overrides */
+  .dark .correction-highlight-active {
+    background-color: rgba(153, 27, 27, 0.5) !important;
+    border-bottom: 2px solid #ef4444 !important;
+  }
+
+  .dark .ProseMirror {
+    color: #e5e7eb;
+    caret-color: #e5e7eb;
+  }
+  
+  .dark .ProseMirror p.is-editor-empty:first-child::before {
+    color: #6b7280;
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
 `;
 
 // Initialize lowlight for syntax highlighting
 const lowlight = createLowlight(common);
+
+const CustomImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      'data-storage-id': {
+        default: null,
+        parseHTML: element => element.getAttribute('data-storage-id'),
+        renderHTML: attributes => {
+          if (!attributes['data-storage-id']) {
+            return {};
+          }
+          return {
+            'data-storage-id': attributes['data-storage-id'],
+          };
+        },
+      },
+    };
+  },
+});
 
 // The specific default cover requested (Sunset Beach)
 const DEFAULT_COVER_URL = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200';
@@ -79,6 +117,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [coverImage, setCoverImage] = useState<string | null>(DEFAULT_COVER_URL);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
   
   // Link Modal State
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -108,7 +147,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
             return t('block.placeholder');
         },
       }),
-      Image,
+      CustomImage,
       Link.configure({
           openOnClick: false,
           autolink: true,
@@ -170,11 +209,13 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
         },
       }),
     ],
-    content: initialContent || '',
+    content: '', // Start empty, hydrate later
+    editable: false, // Wait for hydration
     editorProps: {
       attributes: {
         // Updated classes: flex-1 and h-full to ensure it takes up space
-        class: 'prose prose-lg focus:outline-none max-w-none flex-1 h-full min-h-[60vh]',
+        // Added dark:prose-invert to support dark mode text colors in typography plugin
+        class: 'prose prose-lg dark:prose-invert focus:outline-none max-w-none flex-1 h-full min-h-[60vh]',
       },
       handleDOMEvents: {
         keydown: (view, event) => {
@@ -237,6 +278,42 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
        }
     },
   });
+
+  // Hydrate content with images from IndexedDB
+  useEffect(() => {
+    // Only run if editor is initialized and not yet hydrated
+    // We check !isHydrated to avoid re-running if not needed, but editor dependency might trigger
+    if (!editor || isHydrated) return;
+
+    const hydrate = async () => {
+        try {
+            if (!initialContent) {
+                // If no content, just enable editing
+                setIsHydrated(true);
+                editor.setEditable(true);
+                return;
+            }
+
+            // Replace placeholder images with blob URLs
+            const content = await hydrateImages(initialContent);
+            
+            // Set content and enable editing
+            // Note: This will reset cursor position, but since it's initial load, it's fine
+            editor.commands.setContent(content);
+            editor.setEditable(true);
+            // editor.commands.clearHistory(); 
+            setIsHydrated(true);
+        } catch (err) {
+            console.error("Failed to hydrate content:", err);
+            // Fallback to initial content if hydration fails
+            editor.commands.setContent(initialContent || '');
+            editor.setEditable(true);
+            setIsHydrated(true);
+        }
+    };
+
+    hydrate();
+  }, [editor, initialContent]); // Only depend on editor and initialContent
 
   // Set up click handler for corrections
   useEffect(() => {
@@ -356,13 +433,23 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
   const handleInsertImage = async (file: File) => {
     if (!editor) return;
     try {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const src = e.target?.result as string;
-            editor.chain().focus().setImage({ src }).run();
-        };
-        reader.readAsDataURL(file);
-        await saveImage(file);
+        // Compress image before inserting to reduce size
+        // Note: saveImage also compresses, so we do it once inside saveImage?
+        // Actually saveImage returns ID, we need to load it to get blob URL
+        
+        // 1. Save to IDB (handles compression)
+        const id = await saveImage(file);
+        
+        // 2. Get Blob URL for display
+        const blobUrl = await loadImage(id);
+        
+        if (blobUrl) {
+             editor.chain().focus().setImage({ 
+                 src: blobUrl,
+                 // @ts-ignore
+                 'data-storage-id': id
+             }).run();
+        }
     } catch (err) {
         console.error(err);
         alert("Failed to load image");
@@ -466,6 +553,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
     }
     
     // 如果点击在编辑器右侧的 padding 区域，调整 x 到编辑器右边界
+    // 这样可以定位到该行的开始位置
     if (clickX > editorRect.right) {
       clickX = editorRect.right - 1;
     }
@@ -483,7 +571,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
   };
 
   return (
-    <div className="flex flex-col w-full min-h-full relative bg-white">
+    <div className="flex flex-col w-full min-h-full relative bg-white dark:bg-gray-900 transition-colors duration-200">
       <style>{EditorStyles}</style>
       <Toolbar 
         editor={editor} 
@@ -524,7 +612,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
                     ) : (
                     <div 
                         onClick={handleAddDefaultCover}
-                        className="h-12 border-b border-transparent hover:border-gray-200 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer transition-all px-2 -ml-2 rounded"
+                        className="h-12 border-b border-transparent hover:border-gray-200 dark:hover:border-gray-700 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer transition-all px-2 -ml-2 rounded"
                     >
                         <LucideImage size={16} className="mr-2" />
                         <span className="text-sm font-medium">{t('editor.add_cover')}</span>
@@ -534,30 +622,32 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
 
                 <div className="relative flex-1 px-16 pb-12">
                     {/* Blocking Overlay & Loading State */}
-                    {isAiLoading && (
+                    {(isAiLoading || !isHydrated) && (
                         <>
                             {/* Transparent overlay to block interactions */}
-                            <div className="absolute inset-0 z-[9998] bg-white/0 cursor-wait" />
+                            <div className="absolute inset-0 z-[9998] bg-white/0 dark:bg-black/0 cursor-wait" />
                             
                             {/* Floating Status Capsule - Positioned at Bottom */}
                             <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-bottom-2 fade-in duration-300 pointer-events-none">
-                                <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-indigo-100 rounded-xl px-5 py-3 flex items-center gap-4">
+                                <div className="bg-white dark:bg-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-indigo-100 dark:border-indigo-900 rounded-xl px-5 py-3 flex items-center gap-4">
                                     <div className="flex items-center gap-2">
-                                        <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
-                                        <span className="text-sm font-semibold text-gray-800">正在校对中</span>
+                                        <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                                            {isAiLoading ? '正在校对中' : '加载内容中...'}
+                                        </span>
                                     </div>
                                     
-                                    {correctionProgress.total > 0 && (
+                                    {isAiLoading && correctionProgress.total > 0 && (
                                         <>
-                                            <div className="w-px h-4 bg-gray-200"></div>
+                                            <div className="w-px h-4 bg-gray-200 dark:bg-gray-700"></div>
                                             <div className="flex items-center gap-2 min-w-[120px]">
-                                                <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
+                                                <div className="h-1.5 flex-1 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                                                     <div 
-                                                        className="h-full bg-indigo-600 rounded-full transition-all duration-300 ease-out"
+                                                        className="h-full bg-indigo-600 dark:bg-indigo-500 rounded-full transition-all duration-300 ease-out"
                                                         style={{ width: `${(correctionProgress.current / correctionProgress.total) * 100}%` }}
                                                     />
                                                 </div>
-                                                <span className="text-xs font-bold text-indigo-600 w-8 text-right">
+                                                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 w-8 text-right">
                                                     {Math.round((correctionProgress.current / correctionProgress.total) * 100)}%
                                                 </span>
                                             </div>
@@ -570,10 +660,10 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
                     
                     <div 
                       ref={editorContainerRef} 
-                      className="relative z-0 min-h-full cursor-text flex flex-col flex-1"
+                      className={`relative z-0 min-h-full cursor-text flex flex-col flex-1 transition-opacity duration-300 ${!isHydrated ? 'opacity-0' : 'opacity-100'} dark:text-gray-100`}
                       onClick={handleEditorClick}
                     >
-                        <EditorContent editor={editor} className="flex-1 h-full flex flex-col" />
+                        <EditorContent editor={editor} className="flex-1 h-full flex flex-col dark:prose-invert" />
                     </div>
                 </div>
             </div>
@@ -625,14 +715,14 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
       {!isCorrectionPanelOpen && checkResult.length > 0 && (
         <button
             onClick={() => setIsCorrectionPanelOpen(true)}
-            className="fixed right-8 bottom-8 z-50 bg-white border border-gray-200 shadow-lg p-3 rounded-full hover:bg-gray-50 transition-all group flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4"
+            className="fixed right-8 bottom-8 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg p-3 rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 transition-all group flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4"
             title="查看校对结果"
         >
-            <div className="bg-indigo-100 p-1.5 rounded-full">
-                <Sparkles size={18} className="text-indigo-600" />
+            <div className="bg-indigo-100 dark:bg-indigo-900 p-1.5 rounded-full">
+                <Sparkles size={18} className="text-indigo-600 dark:text-indigo-400" />
             </div>
-            <span className="font-medium text-gray-700 pr-1 text-sm">校对结果</span>
-            <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+            <span className="font-medium text-gray-700 dark:text-gray-200 pr-1 text-sm">校对结果</span>
+            <span className="bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 text-xs font-bold px-2 py-0.5 rounded-full">
                 {checkResult.length}
             </span>
         </button>

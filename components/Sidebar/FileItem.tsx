@@ -55,7 +55,10 @@ export const FileItem: React.FC<FileItemProps> = ({
     <div className="relative select-none">
       <div 
         className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors group
-          ${isActive ? 'bg-blue-50 text-lark-blue' : 'text-gray-700 hover:bg-gray-100'}
+          ${isActive 
+            ? 'bg-blue-50 dark:bg-blue-900/30 text-lark-blue dark:text-blue-400' 
+            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+          }
         `}
         style={{ paddingLeft: `${level * 12 + 12}px` }}
         onClick={() => {
@@ -69,7 +72,7 @@ export const FileItem: React.FC<FileItemProps> = ({
       >
         {/* Toggle Icon for Folders */}
         <div 
-          className={`w-4 h-4 flex items-center justify-center text-gray-400 transition-transform
+          className={`w-4 h-4 flex items-center justify-center text-gray-400 dark:text-gray-500 transition-transform
             ${!hasChildren && item.type === 'folder' ? 'invisible' : ''}
           `}
           onClick={(e) => {
@@ -83,7 +86,7 @@ export const FileItem: React.FC<FileItemProps> = ({
         </div>
 
         {/* Icon */}
-        <div className={`${isActive ? 'text-lark-blue' : 'text-gray-500'}`}>
+        <div className={`${isActive ? 'text-lark-blue dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`}>
           {item.type === 'folder' ? (
             isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />
           ) : (
@@ -101,7 +104,7 @@ export const FileItem: React.FC<FileItemProps> = ({
               onChange={(e) => setEditName(e.target.value)}
               onBlur={handleSubmit}
               onClick={(e) => e.stopPropagation()}
-              className="w-full text-sm px-1 py-0.5 border border-lark-blue rounded bg-white outline-none"
+              className="w-full text-sm px-1 py-0.5 border border-lark-blue rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none"
             />
           </form>
         ) : (
@@ -110,7 +113,7 @@ export const FileItem: React.FC<FileItemProps> = ({
 
         {/* Action Menu Trigger (visible on hover or active) */}
         <button 
-          className={`opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 text-gray-500 transition-opacity ${showMenu ? 'opacity-100' : ''}`}
+          className={`opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-opacity ${showMenu ? 'opacity-100' : ''}`}
           onClick={(e) => {
              e.stopPropagation();
              setShowMenu(!showMenu);
@@ -122,9 +125,9 @@ export const FileItem: React.FC<FileItemProps> = ({
 
       {/* Context Menu */}
       {showMenu && (
-        <div className="absolute right-2 top-8 z-50 w-32 bg-white rounded-lg shadow-xl border border-gray-200 py-1 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-2 top-8 z-50 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 animate-in fade-in zoom-in-95 duration-100">
            <button 
-             className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 text-left"
+             className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
              onClick={(e) => {
                  e.stopPropagation();
                  setIsEditing(true);
@@ -135,7 +138,7 @@ export const FileItem: React.FC<FileItemProps> = ({
               {t('sidebar.rename')}
            </button>
            <button 
-             className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 text-left"
+             className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-left"
              onClick={(e) => {
                  e.stopPropagation();
                  if (confirm(t('sidebar.confirm_delete'))) {

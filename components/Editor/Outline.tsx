@@ -10,10 +10,7 @@ interface OutlineProps {
 interface HeadingNode {
   text: string;
   level: number;
-  id: string; // Tiptap doesn't give IDs to headings by default, we'll rely on scrolling to index or similar, or just text match. 
-  // Actually, for outline to work perfectly, we need IDs. 
-  // For now, let's just scrollTo using simple logic or add IDs via extension later.
-  // I'll implement a simple "find first occurrence" scroll logic.
+  id: string; 
   pos: number;
 }
 
@@ -45,24 +42,24 @@ export const Outline: React.FC<OutlineProps> = ({ editor }) => {
   if (headings.length === 0) return null;
 
   return (
-    <div className="w-64 hidden xl:block fixed right-8 top-32 bottom-0 overflow-y-auto pr-2">
-      <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 pl-2">
+    <div className="w-64 hidden xl:block fixed right-8 top-32 bottom-0 overflow-y-auto pr-2 transition-colors duration-200">
+      <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4 pl-2">
         <AlignLeft size={14} />
         {t('outline.title')}
       </div>
-      <div className="border-l border-gray-100 relative">
+      <div className="border-l border-gray-100 dark:border-gray-800 relative pl-3">
         {headings.map((heading, index) => (
           <button
             key={index}
             onClick={() => scrollToHeading(heading.pos)}
             className={`
-              text-left w-full py-1.5 pr-2 text-sm text-gray-500 hover:text-lark-blue hover:bg-lark-50 rounded-r transition-all truncate
-              ${heading.level === 1 ? 'pl-4 font-medium' : ''}
-              ${heading.level === 2 ? 'pl-8' : ''}
-              ${heading.level === 3 ? 'pl-12 text-xs' : ''}
+              text-left w-full py-1.5 pr-2 text-sm text-gray-500 dark:text-gray-400 hover:text-lark-blue dark:hover:text-lark-blueHover hover:bg-lark-50 dark:hover:bg-lark-blue/10 rounded transition-all truncate
+              ${heading.level === 1 ? 'pl-2 font-medium text-gray-700 dark:text-gray-300' : ''}
+              ${heading.level === 2 ? 'pl-5' : ''}
+              ${heading.level === 3 ? 'pl-8 text-xs' : ''}
             `}
           >
-            {heading.text || <span className="italic text-gray-300">{t('outline.untitled')}</span>}
+            {heading.text || <span className="italic text-gray-300 dark:text-gray-600">{t('outline.untitled')}</span>}
           </button>
         ))}
       </div>
