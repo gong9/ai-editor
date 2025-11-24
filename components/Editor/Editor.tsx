@@ -35,6 +35,7 @@ import { convertToProseMirrorPositions } from '../../utils/annotation/position-c
 import { CorrectionExtension } from '../../extensions/CorrectionExtension';
 import { correctionPluginKey } from '../../utils/annotation/correction-plugin';
 import { streamCorrection } from '../../services/correctionService';
+import { Guide } from '../Guide/Guide';
 
 const EditorStyles = `
   .correction-highlight {
@@ -134,9 +135,10 @@ interface EditorProps {
   initialContent?: string;
   onChange?: (content: string) => void;
   onSave?: () => void;
+  fileId?: string;
 }
 
-export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave }) => {
+export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave, fileId }) => {
   const { t } = useTranslation();
   const [slashMenuPos, setSlashMenuPos] = useState<{ x: number, y: number } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -147,6 +149,9 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
   // Link Modal State
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [linkModalData, setLinkModalData] = useState({ text: '', url: '' });
+
+  // Guide State
+  const [showGuide, setShowGuide] = useState(false);
 
   // Correction State
   const [isCorrectionPanelOpen, setIsCorrectionPanelOpen] = useState(false);
@@ -395,6 +400,27 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
 
     hydrate();
   }, [editor, initialContent]); // Only depend on editor and initialContent
+
+  // Check for first-time guide
+  useEffect(() => {
+    if (fileId === 'root_welcome') {
+      const hasSeen = localStorage.getItem('has_seen_correction_guide');
+      if (!hasSeen) {
+        // Slight delay to allow editor to mount and toolbar to appear
+        const timer = setTimeout(() => {
+            setShowGuide(true);
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    } else {
+        setShowGuide(false);
+    }
+  }, [fileId]);
+
+  const handleCloseGuide = () => {
+    localStorage.setItem('has_seen_correction_guide', 'true');
+    setShowGuide(false);
+  };
 
   // Set up click handler for corrections
   useEffect(() => {
@@ -761,6 +787,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent, onChange, onSave
 
   return (
     <div className="flex flex-col w-full min-h-full relative bg-white dark:bg-gray-900 transition-colors duration-200">
+      {showGuide && <Guide onClose={handleCloseGuide} />}
       <style>{EditorStyles}</style>
       <Toolbar 
         editor={editor} 

@@ -34,6 +34,7 @@ interface ToolbarButtonProps {
   children: React.ReactNode;
   title?: string;
   disabled?: boolean;
+  id?: string;
 }
 
 const ToolbarButton: React.FC<ToolbarButtonProps> = ({ 
@@ -41,9 +42,11 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   onClick, 
   children, 
   title,
-  disabled
+  disabled,
+  id
 }) => (
   <button
+    id={id}
     onClick={(e) => {
       e.preventDefault(); // Prevent losing focus from editor
       onClick();
@@ -219,6 +222,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onInsertImage, onLinkC
 
       <div className="flex items-center gap-1 px-2">
         <ToolbarButton
+          id="toolbar-correction-btn"
           onClick={onCorrectionClick}
           title="AI 校对"
           isActive={false} // Never active state, just a trigger

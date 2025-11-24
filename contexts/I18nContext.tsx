@@ -89,6 +89,10 @@ const translations = {
     'block.placeholder': '输入 "/" 使用命令',
     'block.placeholder.empty': '输入 "/" 使用命令',
 
+    'guide.title': '试试 AI 校对',
+    'guide.description': '我们准备了一些包含错误的文本。点击上方的星星图标，看看 AI 如何修正它们！',
+    'guide.got_it': '知道了',
+
     'sidebar.new_page': '新建页面',
     'sidebar.new_folder': '新建文件夹',
     'sidebar.search': '搜索...',
@@ -198,6 +202,10 @@ const translations = {
     'block.loading_image': 'Loading Image...',
     'block.placeholder': "Type '/' for commands",
     'block.placeholder.empty': "Type '/' for commands",
+
+    'guide.title': 'Try AI Correction',
+    'guide.description': 'We\'ve prepared some text with intentional errors. Click the sparkle icon above to see how AI fixes them!',
+    'guide.got_it': 'Got it',
 
     'sidebar.new_page': 'New Page',
     'sidebar.new_folder': 'New Folder',

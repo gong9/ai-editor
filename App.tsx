@@ -7,6 +7,7 @@ import { CheckCircle2, Languages, Loader2, Moon, Sun } from 'lucide-react';
 import { I18nProvider, useTranslation } from './contexts/I18nContext';
 import { FileSystemProvider, useFileSystem } from './contexts/FileSystemContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { OnboardingGuide } from './components/Guide/OnboardingGuide';
 
 const AppContent = () => {
   const { t, language, setLanguage } = useTranslation();
@@ -191,6 +192,7 @@ const AppContent = () => {
                             initialContent={activeFile.content || ''}
                             onChange={handleEditorChange}
                             onSave={handleManualSave}
+                            fileId={activeFile.id}
                         />
                     </div>
                 </>

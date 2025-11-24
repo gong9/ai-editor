@@ -24,9 +24,21 @@ const INITIAL_ITEMS: FileSystemItem[] = [
   {
     id: 'root_welcome',
     parentId: null,
-    name: 'Welcome to LarkLite',
+    name: '欢迎使用 LarkLite',
     type: 'file',
-    content: `<h1>Welcome to LarkLite</h1><p>This is your new workspace. Go ahead and edit this page!</p>`,
+    content: `<h1>👋 欢迎使用 LarkLite</h1>
+<p>LarkLite 是一个现代化的智能文档编辑器，致力于提供流畅的写作体验。</p>
+<h2>✨ AI 智能校对</h2>
+<p>我们内置了强大的 AI 校对助手，可以帮助你发现并修正文中的拼写错误、语法问题和润色建议。</p>
+<blockquote>
+<p><strong>试一试：</strong><br>
+点击顶部工具栏右侧的 <strong>✨ 校对按钮</strong>，AI 将自动分析本文内容。</p>
+</blockquote>
+<h3>👇 这是一个包含错误的示例段落：</h3>
+<p>Welcome to LarkLite! This is a inteligent editor that help you writting better. It can fix speling errors and grammer misstakes automatically.</p>
+<p>中文测试：这一段话里有几个错别字，比如我们将“既然”写成了“技然”，把“以后”写成了“以侯”。请尝试使用校对功能来修复它们。</p>
+<hr>
+<p>祝你创作愉快！</p>`,
     createdAt: Date.now()
   }
 ];
