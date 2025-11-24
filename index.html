@@ -66,6 +66,29 @@
 }
 </script>
     <style>
+        /* Text Selection Styling */
+        ::selection {
+            background-color: rgba(51, 112, 255, 0.3); /* Lark blue with transparency */
+            color: inherit;
+        }
+        
+        ::-moz-selection {
+            background-color: rgba(51, 112, 255, 0.3);
+            color: inherit;
+        }
+        
+        /* Dark mode text selection */
+        .dark ::selection {
+            background-color: rgba(56, 189, 248, 0.4) !important; /* 明亮的天蓝色 */
+            color: #ffffff !important; /* 强制文字变白 */
+            -webkit-text-fill-color: #ffffff !important; /* 兼容性处理 */
+        }
+        
+        .dark ::-moz-selection {
+            background-color: rgba(56, 189, 248, 0.4) !important;
+            color: #ffffff !important;
+        }
+
         /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;

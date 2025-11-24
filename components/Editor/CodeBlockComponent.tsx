@@ -89,7 +89,7 @@ export const CodeBlockComponent: React.FC<CodeBlockComponentProps> = ({
 
       {/* Content (Code Area) */}
       <pre className="!m-0 !rounded-none !bg-[#282c34] dark:!bg-[#1e2025] !p-4 text-sm leading-relaxed">
-        <NodeViewContent as="code" />
+        <NodeViewContent as={"code" as any} />
       </pre>
     </NodeViewWrapper>
   );
