@@ -4,11 +4,13 @@ import { FileItem } from './FileItem';
 import { FileSystemItem } from '../../types';
 import { Plus, FolderPlus, Search, Settings, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../contexts/I18nContext';
+import { useNavigate } from 'react-router-dom';
 
 export const Sidebar: React.FC = () => {
   const { items, activeFileId, setActiveFileId, createItem, deleteItem, updateItemName } = useFileSystem();
   const { t } = useTranslation();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
 
   const toggleFolder = (id: string) => {
     const newSet = new Set(expandedFolders);
@@ -18,6 +20,12 @@ export const Sidebar: React.FC = () => {
       newSet.add(id);
     }
     setExpandedFolders(newSet);
+  };
+
+  // Handle file selection/navigation
+  const handleFileSelect = (id: string) => {
+    setActiveFileId(id);
+    navigate(`/article/${id}`);
   };
 
   // Recursive render
@@ -36,7 +44,7 @@ export const Sidebar: React.FC = () => {
             hasChildren={hasChildren}
             isExpanded={expandedFolders.has(item.id)}
             onToggle={() => toggleFolder(item.id)}
-            onSelect={() => setActiveFileId(item.id)}
+            onSelect={() => handleFileSelect(item.id)}
             onDelete={() => deleteItem(item.id)}
             onRename={(newName) => updateItemName(item.id, newName)}
           />
@@ -46,6 +54,11 @@ export const Sidebar: React.FC = () => {
         </React.Fragment>
       );
     });
+  };
+
+  const handleCreatePage = async () => {
+      const id = await createItem('file', null, 'New Page');
+      navigate(`/article/${id}`);
   };
 
   return (
@@ -60,7 +73,7 @@ export const Sidebar: React.FC = () => {
          {/* Actions */}
          <div className="flex gap-2 mb-4">
              <button 
-                onClick={() => createItem('file', null, 'New Page')}
+                onClick={handleCreatePage}
                 className="flex-1 flex items-center justify-center gap-1 bg-lark-blue hover:bg-lark-blueHover text-white text-xs py-1.5 rounded transition-colors shadow-sm"
              >
                 <Plus size={14} />

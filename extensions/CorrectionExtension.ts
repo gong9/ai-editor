@@ -112,13 +112,22 @@ export const CorrectionExtension = Extension.create({
               
               // Force DOM scroll if ProseMirror scrollIntoView fails for some reason
               // This is a backup for when decorations are hidden
+              // AND always try to center
               setTimeout(() => {
                 try {
                     const dom = editor.view.domAtPos(safePos);
-                    if (dom && dom.node && (dom.node as Element).scrollIntoView) {
-                        (dom.node as Element).scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    } else if (dom && dom.node && dom.node.parentElement) {
-                         dom.node.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // Helper to execute scroll
+                    const scrollElement = (el: Element) => {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                    };
+
+                    if (dom && dom.node) {
+                        if (dom.node instanceof Element) {
+                            scrollElement(dom.node);
+                        } else if (dom.node.parentElement) {
+                            scrollElement(dom.node.parentElement);
+                        }
                     }
                 } catch (e) {
                     console.warn('Manual scroll failed', e);

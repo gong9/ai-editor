@@ -2,10 +2,18 @@ import React from 'react';
 import { useFileSystem } from '../../contexts/FileSystemContext';
 import { Plus, FileText, Clock } from 'lucide-react';
 import { useTranslation } from '../../contexts/I18nContext';
+import { useNavigate } from 'react-router-dom';
 
 export const WorkspaceHome: React.FC = () => {
   const { items, createItem, setActiveFileId } = useFileSystem();
   const { t, language } = useTranslation();
+  const navigate = useNavigate();
+
+  // Handle file navigation
+  const handleFileClick = (id: string) => {
+      setActiveFileId(id);
+      navigate(`/article/${id}`);
+  };
 
   // 根据北京时间获取问候语
   const getGreeting = () => {
@@ -78,7 +86,7 @@ export const WorkspaceHome: React.FC = () => {
                {recentFiles.map(file => (
                  <div 
                    key={file.id}
-                   onClick={() => setActiveFileId(file.id)}
+                   onClick={() => handleFileClick(file.id)}
                    className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-lark-blue dark:hover:border-lark-blue hover:shadow-md cursor-pointer transition-all bg-white dark:bg-gray-800 group"
                  >
                     <div className="flex items-start justify-between mb-3">

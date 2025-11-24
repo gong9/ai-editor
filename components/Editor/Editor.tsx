@@ -43,11 +43,12 @@ const EditorStyles = `
   }
   
   .correction-highlight-active {
-    background-color: rgba(254, 202, 202, 0.5) !important;
-    border-bottom: 2px solid #b91c1c !important;
+    background-color: rgba(254, 202, 202, 0.9) !important;
+    border-bottom: 3px solid #dc2626 !important;
     /* Force high priority over other styles */
     z-index: 10;
     position: relative;
+    border-radius: 2px;
   }
 
   .correction-accepted {
@@ -63,8 +64,8 @@ const EditorStyles = `
   
   /* Dark mode overrides */
   .dark .correction-highlight-active {
-    background-color: rgba(153, 27, 27, 0.5) !important;
-    border-bottom: 2px solid #ef4444 !important;
+    background-color: rgba(120, 53, 15, 0.8) !important; /* Amber-900 */
+    border-bottom: 3px solid #fbbf24 !important; /* Amber-400 */
   }
 
   .dark .correction-accepted {
